@@ -23,8 +23,10 @@ Merge risk: `H` (contended, likely conflicts) · `M` · `L`.
 | `vite.config.ts` | build | build | WP-07 | DevOps | M | M |
 | `package.json` / `package-lock.json` | – | – | WP-07 (deps), WP-12 (name) | DevOps | **H** | **H** |
 | `tsconfig.json` | build | build | WP-00, WP-08 | Staff Eng | **H** | M |
-| `.env.example` (new) | – | – | WP-07 | DevOps | L | L |
+| `.env.example` | AI Studio scaffold | AI Studio env contract | WP-07 (extend), WP-12 | DevOps | M | L |
+| — **exists today** and documents AI Studio-injected `GEMINI_API_KEY` + `APP_URL`. Extend, never delete | | | | | | |
 | `Dockerfile` (new) | – | – | WP-07 | DevOps | M | L |
+| **OPTIONAL** — external deployment path only; not on the AI Studio critical path | | | | | | |
 | `.github/workflows/**` (new) | – | – | WP-00, WP-07 | DevOps | M | L |
 
 ## 2. Export
@@ -137,3 +139,54 @@ Merge risk: `H` (contended, likely conflicts) · `M` · `L`.
 | `useProjectStore.ts` | WP-05, WP-08 | WP-05 (asset refs) then WP-08 (layer move + cycle break). |
 | `VirtualizedTimeline.tsx` | WP-05, WP-08, WP-11, WP-12 | **Serialise**: 05 → 11 → 08 → 12. |
 | `clipTransformModel.ts` | WP-03, WP-08 | WP-03 changes semantics; WP-08 only moves it. |
+
+---
+
+## 8. AI Studio runtime surface (added 2026-09-09)
+
+These files belong to the **Google AI Studio Web App runtime** contract. They are owned,
+protected and must not be treated as incidental.
+
+| Path | Current owner | Target owner | WP | Allowed agents | Sens. | Merge risk |
+|---|---|---|---|---|---|---|
+| **`metadata.json`** (AI Studio app manifest) | AI Studio | AI Studio app manifest | **Protected** — changes by ADR only (WP-12 hygiene, WP-13) | Principal Architect | **H** | L |
+| — `name` | AI Studio | app identity | ADR only | Principal Architect | M | L |
+| — `requestFramePermissions` | AI Studio | **single authority for device permissions** | ADR only (AS-INV-13) | Principal Architect, Security | **H** | L |
+| — `majorCapabilities` | AI Studio | declares server-side Gemini | ADR only | Principal Architect, Security | **H** | L |
+| **`README.md`** (AI Studio scaffold, contains the `ai.studio/apps/<id>` URL) | AI Studio | AI Studio scaffold + Neural-Pro overview | WP-12 (extend) | Docs Lead | M | L |
+| **`.env.example`** | AI Studio | env contract | WP-07 | DevOps | M | L |
+| `vite.config.ts` | build | AI Studio dev contract (`DISABLE_HMR`, `allowedHosts`) | WP-07 | DevOps | M | M |
+| `server.ts` — **AI operations only** | monolith | `server/operations/*` | WP-01, WP-09 | Backend/API Security | **H** | **H** |
+| `server.ts` — export/session/ffmpeg surface | monolith | **deleted** | WP-01 | Backend/API Security | **H** | **H** |
+| `src/lib/capabilities.ts` (new) | – | capability probe | WP-07 | React Lead, Media Pipeline | **H** | M |
+| `src/infra/media/ExportMediaPool.ts` (new) | – | export runtime | WP-02 | Media Pipeline | **H** | M |
+| `src/domain/assets/AssetRegistry.ts` (new) | – | persistence interface | WP-05 | Staff Eng | **H** | M |
+| `src/infra/persistence/IndexedDbAssetRegistry.ts` (new) | – | durability | WP-05 | Staff Eng, Backend | **H** | M |
+| `src/infra/persistence/FirestoreAssetRegistry.ts` (new, **OPTIONAL — not v1**) | – | optional network adapter behind the same interface | only by ADR | Principal Architect | M | L |
+| `src/app/workflows/runtime.ts` (new) | – | workflow engine | WP-04 | Workflow Architect | **H** | M |
+| `src/domain/ai/AiGateway.ts` (new) | – | AI boundary | WP-09 | Backend/API Security | **H** | M |
+| `reports/ai-studio-compatibility-*` (new) | – | gate evidence | WP-13 | QA, Principal Architect | M | L |
+| `tests/ai-studio/**` (new) | – | compatibility suite | WP-06, WP-13 | QA | M | L |
+
+## 9. Corrections applied to this matrix
+
+| Correction | Detail |
+|---|---|
+| **`metadata.json` is not scratch** | It is the AI Studio app manifest (`requestFramePermissions`, `majorCapabilities`). Previously categorised with the root scratch files and scheduled for deletion in WP-12. Now protected, owned, and changeable only by ADR |
+| **`README.md` is not scratch** | AI Studio scaffold containing the live app id `https://ai.studio/apps/bdf5ad65-…`. Extend, never delete |
+| **`.env.example` exists** | Not "missing" (D-028 narrowed). It documents AI Studio-injected `GEMINI_API_KEY` and `APP_URL` |
+| **Container/Docker rows are optional** | They belong to the external deployment path, not the AI Studio critical path |
+| **New isolation boundaries** | AI gateway, export runtime, media runtime, persistence, workflow engine, capability probe and compatibility evidence each have a single owning WP (§8) |
+
+## 10. Contention hotspots (updated)
+
+| File / area | Contenders | Rule |
+|---|---|---|
+| `server.ts` | WP-01, WP-07, WP-09, (WP-13 probe) | **Serialise WP-01 → WP-07 → WP-09.** WP-13 adds only the read-only capabilities route via WP-07 |
+| `metadata.json` | WP-12, WP-13 | Hygiene never edits it; any permission change is an ADR |
+| `src/App.tsx` | WP-08, WP-09 | WP-09 (AI migration) first, WP-08 decomposes afterwards |
+| `VideoStudioPro.tsx` | WP-04, WP-08 | WP-04 extracts the export workflow; WP-08 splits the remainder |
+| `CanvasExportRenderer.ts` | WP-02, WP-03 | WP-02 (media resolution) then WP-03 (geometry/parity) |
+| `useProjectStore.ts` | WP-05, WP-08 | WP-05 (asset refs) then WP-08 (layer move + cycle break) |
+| `VirtualizedTimeline.tsx` | WP-05, WP-08, WP-11, WP-12 | **Serialise 05 → 11 → 08 → 12** |
+| Compatibility evidence (`reports/`) | WP-10, WP-13 | WP-13 owns AI Studio evidence; WP-10 aggregates |

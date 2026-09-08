@@ -210,10 +210,27 @@ restores `previous`, so handlers accumulate — **199 stale closures per 200 sta
 ## 8. FFmpeg
 
 The server-side FFmpeg pipeline (`server.ts:738`, `/api/export/*`) is **removed** by ADR-004:
-* the binary is not a declared dependency and is absent from Cloud Run / AI Studio;
+* the binary is not a declared dependency and is **not provided by the Google AI Studio Web App runtime** (also absent from the optional Cloud Run publish path);
 * `spawn ffmpeg` returns `ENOENT` (measured);
 * the client WebCodecs path is the only functioning encoder;
 * maintaining two encoder back-ends with different output guarantees is a parity risk.
 
 If a server-side encoder is ever needed, it must arrive as an explicit, versioned, declared
 dependency with its own parity tests — not as an undeclared `spawn`.
+
+---
+
+## Runtime reconciliation note (2026-09-09)
+
+Under the corrected target runtime — **Google AI Studio Web App** — the export runtime described
+above is **browser-native by requirement, not by preference**:
+
+* the AI Studio server runtime provides no media binary and does not document subprocess
+  support, so **server-side export is rejected by capability**;
+* the runtime offers no durable server storage, so artifacts cannot be staged server-side;
+* CPU is allocated during request processing, so server-side background encoding is unreliable.
+
+Therefore `ExportMediaPool` + `buildCanonicalRenderPlan` + Canvas2D/WebCodecs execute **in the
+user's browser**, and the AI Studio server is limited to AI/text operations. See
+[AI-STUDIO-MEDIA-RUNTIME.md](AI-STUDIO-MEDIA-RUNTIME.md) and
+[../decisions/ADR-016-browser-native-export.md](../decisions/ADR-016-browser-native-export.md).

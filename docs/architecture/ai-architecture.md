@@ -154,3 +154,21 @@ Every call logs:
 ```
 No prompt text, no response text, no key. (Log-level `debug` may record a **hash** of the
 prompt for correlation.)
+
+---
+
+## Runtime reconciliation note (2026-09-09)
+
+The AI boundary above is now explicitly the **AI Studio server-side secret model**:
+
+* `GEMINI_API_KEY` is injected by AI Studio into the **server runtime** and never reaches client
+  code — the repository's `metadata.json` declares
+  `majorCapabilities: ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]`, confirming the intended shape;
+* **sharing an AI Studio app bills the owner's key**, so the operation allowlist is a cost
+  control as well as a security control;
+* the repository's `.env.example` documents that AI Studio injects `GEMINI_API_KEY` and `APP_URL`
+  at runtime.
+* every operation must be **bounded** (timeout, bounded retry, bounded payload) because
+  long-running or background server work is not guaranteed by the runtime.
+
+The path is: **client intent → validated operation → server-owned configuration → Gemini**.

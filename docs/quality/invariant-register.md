@@ -30,6 +30,18 @@ Legend — **Status:** `PASS` (verified executably) · `FAIL` (verified executab
 | **INV-019** | A renderer cannot mutate project state | Static: `CanonicalRenderPlan` is `readonly`; test: render 100 frames, assert the snapshot is deep-equal before/after | static + executable | WP-03 | **UNVERIFIED** | |
 | **INV-020** | No failure is silently swallowed | Static: `catch` blocks must log or rethrow (lint rule); executable tests for each known failure | static + executable | WP-09 | **FAIL** | `catch { return simulated }`, empty catches, `console.error(String(e))` |
 
+## Runtime invariants (AI Studio)
+
+The target-runtime invariants live in
+[../contracts/AI-STUDIO-RUNTIME-INVARIANTS.md](../contracts/AI-STUDIO-RUNTIME-INVARIANTS.md)
+(**AS-INV-01 … AS-INV-15**): runtime, secret, AI, export, media, persistence, failure,
+workflow, capability-detection, server-scope, bounded-operations, dual-context, manifest,
+delivery-honesty and no-external-prerequisite.
+
+Those invariants are **additive** and take precedence for any question about the target
+runtime. As of 2026-09-09: **2 PASS** (static properties), **7 FAIL**, **6 UNVERIFIED**.
+None is BLOCKED — the unverified ones require execution inside Google AI Studio (WP-13).
+
 ## Verification execution rules
 
 1. An invariant is only `PASS` when its named verification **ran** and produced a passing

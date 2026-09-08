@@ -1,8 +1,16 @@
 # Neural-Pro Engineering Documentation
 
-**Status:** Blueprint phase (PHASE 1). No implementation of the target architecture has
-started. This tree is the authoritative engineering map; the source tree is the authoritative
-implementation. Where they disagree, that is a defect in one of them — record it, do not guess.
+**Status:** Blueprint (PHASE 1) **+ target-runtime reconciliation and architecture re-freeze**
+(2026-09-09). No implementation has started. This tree is the authoritative engineering map;
+the source tree is the authoritative implementation. Where they disagree, that is a defect in
+one of them — record it, do not guess.
+
+> ### TARGET RUNTIME (authoritative)
+> **Neural-Pro's primary runtime target is the Google AI Studio Web App environment.
+> Cloud Run is not a mandatory runtime dependency.**
+> Correction record: [decisions/AI-STUDIO-TARGET-RUNTIME-CORRECTION.md](decisions/AI-STUDIO-TARGET-RUNTIME-CORRECTION.md)
+> · ADR: [ADR-015](decisions/ADR-015-ai-studio-web-app-primary-runtime.md)
+> · Freeze: [execution/ARCHITECTURE-FREEZE.md](execution/ARCHITECTURE-FREEZE.md)
 
 **Source of truth precedence (see
 [decisions/ADR-000](decisions/ADR-000-source-of-truth-precedence.md)):**
@@ -23,6 +31,8 @@ implementation. Where they disagree, that is a defect in one of them — record 
 | Implementing a Work Package | `docs/execution/agents/WP-XX.md` **and** [execution/agent-contract.md](execution/agent-contract.md) |
 | Reviewing a merge | [quality/definition-of-done.md](quality/definition-of-done.md) + [execution/merge-strategy.md](execution/merge-strategy.md) |
 | Asking "can we ship?" | [execution/verification-matrix.md](execution/verification-matrix.md) + [execution/runtime-certification-plan.md](execution/runtime-certification-plan.md) |
+| Asking "does it work in AI Studio?" | [quality/AI-STUDIO-COMPATIBILITY-GATE.md](quality/AI-STUDIO-COMPATIBILITY-GATE.md) (gate G-31) + [architecture/AI-STUDIO-MEDIA-RUNTIME.md](architecture/AI-STUDIO-MEDIA-RUNTIME.md) |
+| Asking "what may I assume about the runtime?" | [contracts/AI-STUDIO-RUNTIME-INVARIANTS.md](contracts/AI-STUDIO-RUNTIME-INVARIANTS.md) |
 | Asking "why is it like this?" | [decisions/](decisions/) |
 | Tracking a defect | `AUDIT_REPORT.md` (audit baseline) + [quality/invariant-register.md](quality/invariant-register.md) |
 | Tracking a risk | [quality/risk-register.md](quality/risk-register.md) |
@@ -34,11 +44,13 @@ implementation. Where they disagree, that is a defect in one of them — record 
 ```
 docs/
 ├── architecture/     How the system is built and why
+│   AI-STUDIO-MEDIA-RUNTIME.md   ← capability classification A–E + canonical export strategy
 │   system-overview.md  runtime-topology.md  module-boundaries.md
 │   dependency-direction.md  state-architecture.md  media-pipeline.md
 │   rendering-architecture.md  export-architecture.md  workflow-architecture.md
 │   persistence-architecture.md  ai-architecture.md  deployment-architecture.md
 ├── contracts/        Normative interfaces. Breaking these requires an ADR.
+│   AI-STUDIO-RUNTIME-INVARIANTS.md  ← runtime/secret/AI/export/media invariants
 │   project-state.md  media-assets.md  rendering.md  workflows.md
 │   api.md  errors.md  ai-integration.md  persistence.md  environment.md
 ├── workflows/        Formal workflow definitions
@@ -52,12 +64,14 @@ docs/
 │   logging.md  monitoring.md  runbooks.md  local-development.md  i18n.md
 ├── decisions/        ADR-000 … ADR-014 + README
 ├── quality/          Standards, invariants, risks, release gates, DoD
+│   AI-STUDIO-COMPATIBILITY-GATE.md  ← first-class gate G-31
 │   engineering-standards.md  code-review-policy.md  definition-of-done.md
 │   release-gates.md  invariant-register.md  risk-register.md
 └── execution/        Master plan, work packages, agent packets, certification
     master-plan.md  work-packages.md  dependency-graph.md  agent-contract.md
     merge-strategy.md  verification-matrix.md  file-ownership-matrix.md
-    runtime-certification-plan.md  agents/WP-00.md … WP-12.md
+    runtime-certification-plan.md  ARCHITECTURE-FREEZE.md
+    agents/WP-00.md … WP-13.md
 ```
 
 ### Document index (§16 of the directive)
@@ -97,6 +111,11 @@ docs/
 | 31 | Verification matrix | [execution/verification-matrix.md](execution/verification-matrix.md) |
 | 32 | Runtime certification plan | [execution/runtime-certification-plan.md](execution/runtime-certification-plan.md) |
 | 33 | Agent handoff packets | [execution/agents/](execution/agents/WP-00.md) |
+| 34 | Target-runtime correction register | [decisions/AI-STUDIO-TARGET-RUNTIME-CORRECTION.md](decisions/AI-STUDIO-TARGET-RUNTIME-CORRECTION.md) |
+| 35 | AI Studio media runtime | [architecture/AI-STUDIO-MEDIA-RUNTIME.md](architecture/AI-STUDIO-MEDIA-RUNTIME.md) |
+| 36 | AI Studio compatibility gate | [quality/AI-STUDIO-COMPATIBILITY-GATE.md](quality/AI-STUDIO-COMPATIBILITY-GATE.md) |
+| 37 | AI Studio runtime invariants | [contracts/AI-STUDIO-RUNTIME-INVARIANTS.md](contracts/AI-STUDIO-RUNTIME-INVARIANTS.md) |
+| 38 | Architecture freeze | [execution/ARCHITECTURE-FREEZE.md](execution/ARCHITECTURE-FREEZE.md) |
 
 ## Absolute rules for this documentation
 
@@ -194,3 +213,41 @@ Justification, in one line per axis:
 No claim above the evidence is made. The next permitted claim, after WP-00…WP-11 with their
 gates executed, is `ENGINEERING READY`; `RUNTIME CERTIFIED` additionally requires Stages D–F of
 [runtime-certification-plan.md](execution/runtime-certification-plan.md) to have been run.
+
+
+---
+
+## Runtime reconciliation summary (2026-09-09)
+
+| Question | Answer |
+|---|---|
+| Primary target runtime | **Google AI Studio Web App** |
+| Cloud Run | **Optional / non-required** — the substrate AI Studio uses when publishing, never a prerequisite |
+| Server runtime | AI Studio-supported Node.js: npm, secrets, network. **No media processing, no durable writes, no background jobs** |
+| Gemini | Server-side secret + controlled operation allowlist |
+| Export | **Browser-native** (Canvas2D + WebCodecs + Web Audio + mp4-muxer); FFmpeg rejected by capability |
+| Persistence | Browser-side IndexedDB + `AssetId`; network stores are optional adapters |
+| Workflow engine | Application-level state machine (W1–W5) |
+
+**Capability classes:** A 14 · B 6 · **C 12 (RUNTIME-UNKNOWN — must be resolved by execution
+inside AI Studio)** · D 6 · E 4.
+
+**No compatibility claim is made.** The AI Studio compatibility gate **G-31 is UNVERIFIED**:
+no execution inside Google AI Studio has been performed from this environment. Twelve capability
+items and six frame-specific unknowns (`P-01…P-06`) await WP-13.
+
+### New defects discovered during reconciliation
+
+| ID | Defect |
+|---|---|
+| **D-029** | The AI Studio app manifest (`metadata.json`) was never examined as architecture and was scheduled for deletion as a scratch file |
+| **D-030** | No runtime capability detection: WebCodecs/Canvas/IndexedDB are used without probing |
+
+### Corrections to the audit baseline
+
+| ID | Correction |
+|---|---|
+| **D-015** | Reclassified **P1 → P2**. `const PORT = 3000` is the AI Studio convention; the app runs there today. The fix is retained for optional external deployment |
+| **D-023** | Rationale corrected: the AI Studio runtime has **no durable storage**; the Cloud Run RAM argument is supporting only. Conclusion unchanged |
+| **D-027** | Narrowed: `metadata.json`, `README.md` and `.env.example` are **protected AI Studio files**, not scratch |
+| **D-028** | Narrowed: `.env.example` **exists** and documents AI Studio-injected `GEMINI_API_KEY` + `APP_URL`; Docker/CI-container are **optional** |

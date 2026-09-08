@@ -17,6 +17,9 @@
 | [ADR-012](ADR-012-layered-modules.md) | Four-layer module structure | Accepted |
 | [ADR-013](ADR-013-compatibility-shim-policy.md) | Compatibility shim policy | Accepted |
 | [ADR-014](ADR-014-session-token-auth.md) | Session-token authorisation (no user accounts) | Accepted |
+| [ADR-015](ADR-015-ai-studio-web-app-primary-runtime.md) | Google AI Studio Web App runtime is the primary target | Accepted — **supersedes the Cloud-Run-targeting parts of ADR-001** |
+| [ADR-016](ADR-016-browser-native-export.md) | Browser-native export is the canonical export path | Accepted |
+| [AI-STUDIO-TARGET-RUNTIME-CORRECTION.md](AI-STUDIO-TARGET-RUNTIME-CORRECTION.md) | Target-runtime correction register | Accepted |
 
 ## Process
 

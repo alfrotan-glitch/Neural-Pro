@@ -190,3 +190,21 @@ compatibility layer survives indefinitely (ADR-006).
 | 14 | Project reload restores media (save → reload → resolve → play) |
 | 15 | Every object URL is revoked (instrument `createObjectURL`/`revokeObjectURL`, assert balance per operation) |
 | + | Quota handling, corrupt document, missing asset, orphan eviction, V1→V2 migration |
+
+---
+
+## Runtime reconciliation note (2026-09-09)
+
+The choice of **IndexedDB** is now justified by the target runtime, not only by comparison with
+alternatives: the **Google AI Studio Web App runtime provides no server-side durable storage**
+("We are working on adding direct support for storage in the future"). Browser-side storage is
+the only runtime-appropriate durable default.
+
+Consequences recorded after reconciliation:
+
+* Network stores (Firebase/Firestore, Supabase) are **optional adapters** behind
+  `AssetRegistry`, available but **not in v1 scope** and never a prerequisite.
+* If in-frame storage proves restricted (runtime unknown `P-02`), **project export/import
+  bundles** become the primary durability mechanism and IndexedDB becomes an accelerator.
+* Ephemeral state (blob/object URLs, media elements, WebCodecs objects, `AudioBuffer`s,
+  `ImageBitmap`s, transient export state) is **never** persisted — unchanged.

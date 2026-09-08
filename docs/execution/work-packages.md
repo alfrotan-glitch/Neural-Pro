@@ -11,12 +11,24 @@ Index. Each WP has a self-contained handoff packet in [agents/](agents/WP-00.md)
 | [WP-04](agents/WP-04.md) | Workflow runtime | W4 runs on a real state machine; D-010 closed | WP-03 | P1 | Medium |
 | [WP-05](agents/WP-05.md) | Persistence & AssetRegistry | Durable assets; D-006 closed | WP-00 | P1 | High |
 | [WP-06](agents/WP-06.md) | Behavioural test architecture | A suite that can fail for behavioural reasons | WP-00 | P1 | Medium |
-| [WP-07](agents/WP-07.md) | Server hardening & deployment | PORT, env, boundary, packaging; Cloud Run viable | WP-00 | P1 | Medium |
+| [WP-07](agents/WP-07.md) | Server hardening & runtime contract | AI Studio server contract, env, boundary, capability probe; container/packaging **optional** | WP-00 | P1 | Medium |
 | [WP-08](agents/WP-08.md) | Module layering & decomposition | Layers, cycles broken, god-components split | WP-02,03,04,05 | P2 | High |
 | [WP-09](agents/WP-09.md) | AI hardening | Typed failures, validated TTS, injection boundary | WP-01 | P1 | Medium |
 | [WP-10](agents/WP-10.md) | Recovery & runtime certification | W5 + executed certification | WP-06, all repairs | P1 | Medium |
 | [WP-11](agents/WP-11.md) | Resource lifecycle & duration authority | INV-008, INV-011, INV-013 | WP-05 | P1 | Medium |
 | [WP-12](agents/WP-12.md) | Hygiene, i18n, determinism, shim removal | Clean tree, localised strings, shims gone | WP-11 | P2 | Low |
+| [WP-13](agents/WP-13.md) | AI Studio Runtime Verification | Resolve every RUNTIME-UNKNOWN by execution inside AI Studio; produce G-31 evidence | WP-00, WP-07 | P1 | Medium |
+
+## Runtime reconciliation (2026-09-09)
+
+All work packages were reviewed against the corrected target runtime. Result:
+**no WP depends on Cloud Run**, no WP assumes unrestricted Node.js in ways the AI Studio runtime
+does not support, and no WP assumes FFmpeg (WP-01 *removes* it). Eight WPs needed modification —
+see the per-WP tables in [master-plan.md](master-plan.md) §4 and the "Runtime reconciliation"
+section appended to each packet.
+
+New: **WP-13** (AI Studio Runtime Verification), added because twelve capability items are
+RUNTIME-UNKNOWN and must be resolved by execution, not reasoning.
 
 ## Common contract for every WP
 

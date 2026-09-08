@@ -21,6 +21,23 @@ Measured facts:
 * The client already has a working WebCodecs export path that produces the real product
   output.
 
+## Rationale correction (2026-09-09)
+
+The original rationale argued from the Cloud Run container contract. Under the corrected target
+runtime ([ADR-015](ADR-015-ai-studio-web-app-primary-runtime.md)) the correct argument is the
+**AI Studio Web App runtime** itself:
+
+* the platform provides **no FFmpeg binary**;
+* **subprocess support is undocumented** (capability class C) — see
+  [../architecture/AI-STUDIO-MEDIA-RUNTIME.md](../architecture/AI-STUDIO-MEDIA-RUNTIME.md) §4,
+  where 7 of 10 FFmpeg questions are unresolved and the unresolved ones are decisive;
+* CPU is allocated during request processing, so long background encodes are unreliable;
+* there is **no durable server storage** for artifacts.
+
+FFmpeg is therefore classified **D — unsupported for the target runtime**, and Strategy B
+(server-side export) is rejected by capability. See
+[ADR-016](ADR-016-browser-native-export.md). **The decision below is unchanged.**
+
 ## Decision
 
 Delete the entire server-side FFmpeg export path:

@@ -175,4 +175,56 @@ Five new/changed authorities:
 | [workflow-architecture.md](workflow-architecture.md) | Workflow engine + state machines |
 | [persistence-architecture.md](persistence-architecture.md) | Metadata vs assets, AssetId, hydration |
 | [ai-architecture.md](ai-architecture.md) | AI service boundary, operation allowlist, models |
-| [deployment-architecture.md](deployment-architecture.md) | Cloud Run, AI Studio, env, health |
+| [deployment-architecture.md](deployment-architecture.md) | **AI Studio Web App runtime** (primary), optional external deployment, env, health |
+| [AI-STUDIO-MEDIA-RUNTIME.md](AI-STUDIO-MEDIA-RUNTIME.md) | Capability classification A–E, canonical export strategy, FFmpeg evaluation |
+
+---
+
+## 9. Target runtime (reconciled 2026-09-09 — authoritative)
+
+> **Neural-Pro's primary runtime target is the Google AI Studio Web App environment.
+> Cloud Run is not a mandatory runtime dependency.**
+
+This section supersedes any earlier statement in this document that treated Cloud Run as the
+deployment target.
+
+| Aspect | Target |
+|---|---|
+| **Target runtime** | **Google AI Studio Web App runtime** (Build mode) |
+| **Primary deployment assumption** | **AI Studio-native** — the app is opened, developed, run, tested and used inside AI Studio |
+| **Cloud Run** | **Optional / non-required** — it is the substrate AI Studio uses when you Publish, and an optional self-managed path afterwards |
+| **Server runtime** | **AI Studio-supported Node.js server runtime** — npm packages, server-side secrets, outbound network. No media processing, no durable writes, no background jobs |
+| **Gemini** | **Server-side secret + controlled operation gateway** (`client intent → validated operation → server-owned configuration → Gemini`) |
+| **Export** | **Browser-native** (Canvas2D + WebCodecs + Web Audio + `mp4-muxer`) — ADR-016 |
+| **Persistence** | **Browser-side durable assets** (IndexedDB + `AssetId`); network stores are an optional future adapter |
+| **Workflow engine** | **Application-level** state machine in the app (W1–W5) |
+
+### Capability classes (summary)
+
+| Class | Count | Meaning |
+|---|---|---|
+| A — officially supported | 14 | may be architected upon |
+| B — supported with constraints | 6 | bounded or AI Studio-managed |
+| C — RUNTIME-UNKNOWN | 12 | must be resolved by execution inside AI Studio (WP-13) |
+| D — unsupported / incompatible | 6 | documented absence or contradicts the platform model |
+| E — optional external deployment | 4 | only with an accepted external dependency |
+
+Full table: [AI-STUDIO-MEDIA-RUNTIME.md](AI-STUDIO-MEDIA-RUNTIME.md) §2.
+
+### Structural facts after the correction
+
+| ID | Fact |
+|---|---|
+| F1 | Export is a DOM parasite of Preview (unchanged defect; also blocks headless verification) |
+| F2 | The parity/diagnostics subsystem is unreachable (unchanged) |
+| F3 | Two renderers, divergent semantics (unchanged) |
+| F4 | No workflow engine; React effects and a `setInterval` poller play the part (unchanged) |
+| **F5** | **The repository contains an AI Studio app manifest (`metadata.json`) and a live `ai.studio/apps/…` id — the app is already an AI Studio app. It was previously unexamined and had been scheduled for deletion as "scratch".** |
+| **F6** | **`.env.example` already exists and documents AI Studio-injected `GEMINI_API_KEY` and `APP_URL`. `APP_URL` is not dead — it is injected with the service URL.** |
+| **F7** | **`const PORT = 3000` is the AI Studio convention, not an AI Studio failure. The app runs there today. It remains a portability defect for optional external deployment (D-015 downgraded P1 → P2).** |
+| **F8** | **There is no server-side durable storage in the AI Studio Web App runtime. Browser-side storage is the only runtime-appropriate durable default.** |
+
+### Freeze
+
+The reconciled, frozen architecture is recorded in
+[../execution/ARCHITECTURE-FREEZE.md](../execution/ARCHITECTURE-FREEZE.md).

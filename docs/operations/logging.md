@@ -7,8 +7,8 @@ Persian strings and emoji, plus a `console.error` that prints `String(error)`.
 
 ## 1. Format
 
-One JSON object per line, to stdout. Cloud Run captures stdout as structured logs when the
-line is valid JSON.
+One JSON object per line, to stdout. The Google AI Studio Web App runtime captures stdout as
+structured logs when the line is valid JSON (the same holds for the optional publish path).
 
 ```json
 { "ts":"2026-09-08T12:34:56.789Z", "level":"info", "event":"ai.request",
@@ -85,6 +85,6 @@ No telemetry endpoint is contacted without explicit user consent (no analytics t
 
 ## 8. Retention and cost
 
-Logs are retained by the platform (Cloud Run → Cloud Logging, default 30 days). Because the
+Logs are retained by the platform (AI Studio / optional Cloud Run → Cloud Logging). Because the
 log volume is dominated by request lines, no per-frame client logging is emitted in
 production.

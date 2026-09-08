@@ -869,3 +869,53 @@ vite.config.ts — added server.allowedHosts: true
   for the proxied preview host, making the app unviewable behind AI Studio (or any reverse
   proxy). This is a required AI Studio compatibility fix, not a stylistic change.
 ```
+
+---
+
+# APPENDIX — Target-runtime reconciliation annotations (2026-09-09)
+
+**The audit above is a historical record and is NOT rewritten.** The following annotations are
+appended because the target runtime was clarified after the audit was completed:
+
+> **Neural-Pro's primary runtime target is the Google AI Studio Web App environment.
+> Cloud Run is not a mandatory runtime dependency.**
+
+Full correction register: `docs/decisions/AI-STUDIO-TARGET-RUNTIME-CORRECTION.md`.
+Governing ADR: `docs/decisions/ADR-015-ai-studio-web-app-primary-runtime.md`.
+
+## A.1 Defect reclassifications
+
+| Defect | Original finding | Annotation |
+|---|---|---|
+| **D-015** (`const PORT = 3000`, P1, "hard deployment blocker") | `server.ts:196` | **Downgraded to P2.** Hard-coded `3000` is the **AI Studio convention**; the app runs inside AI Studio with it today. It remains a portability defect for the optional external deployment path. Fix retained: `process.env.PORT ?? 3000`. |
+| **D-008** (ffmpeg absent) | `spawn('ffmpeg')` → `ENOENT` | Finding confirmed; **rationale corrected**. Under the AI Studio Web App runtime, FFmpeg is capability class **D (unsupported)**: no binary is provided, `spawn` is undocumented (class C), and there is no durable storage for artifacts. See ADR-016. |
+| **D-023** (`/tmp` POSIX-only, P2) | 6 × `/tmp/session_…` | Finding confirmed; **rationale corrected**. The primary argument is that the AI Studio runtime provides **no durable storage**; the Cloud Run RAM-backed `/tmp` argument is supporting only. |
+| **D-027** (scratch files) | 9 root scratch files | **Narrowed.** `metadata.json` (the AI Studio app manifest), `README.md` (AI Studio scaffold with the live `ai.studio/apps/bdf5ad65-…` id) and `.env.example` are **protected AI Studio files**, not scratch. The remainder are genuine scratch. |
+| **D-028** (no ESLint/CI/Docker) | missing tooling | **Narrowed.** `.env.example` exists. Docker/CI-container are **optional external-deployment** items, not AI Studio requirements. ESLint + CI remain required. |
+
+## A.2 New defects found during reconciliation
+
+| ID | Finding | Severity |
+|---|---|---|
+| **D-029** | The **AI Studio app manifest** (`metadata.json`, with `requestFramePermissions: []` and `majorCapabilities: ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]`) was never examined as part of the architecture and was scheduled for deletion as a scratch file. It is the app's contract with the target runtime. | P1 |
+| **D-030** | **No runtime capability detection.** WebCodecs, Canvas2D, `OfflineAudioContext`, IndexedDB and the download path are used with no probe; a missing capability produces an obscure failure rather than an actionable diagnosis. | P1 |
+
+## A.3 Findings that are unaffected
+
+D-001, D-002, D-003, D-004, D-005, D-006, D-007, D-009, D-010, D-011, D-012, D-013, D-014,
+D-016 … D-026 are unaffected by the runtime reconciliation. In particular:
+
+* **D-010 / R-014 — the export-queue "deadlock" hypothesis remains DISPROVED.**
+  `audit/repro-queue-deadlock.mts` exits 0. It is **not** a confirmed deadlock defect. The
+  independently reproduced **cancellation** defects (a cancelled queued job still executes; a
+  cancelled running job stays `rendering`) are tracked separately under D-010 and owned by
+  WP-04. They must never be merged back into the disproved deadlock claim.
+* D-002 (anonymous verbatim Gemini passthrough) is now **also** a cost incident: sharing an
+  AI Studio app bills the owner's key.
+
+## A.4 Runtime items that could not be verified here
+
+Twelve capability items and six frame-specific unknowns (`P-01`…`P-06`) are recorded as
+**RUNTIME-UNKNOWN — EXECUTABLE VERIFICATION REQUIRED** in
+`docs/architecture/AI-STUDIO-MEDIA-RUNTIME.md`. They are resolved by **WP-13** through execution
+inside Google AI Studio. None of them may be answered by reasoning.

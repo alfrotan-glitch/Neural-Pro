@@ -31,9 +31,11 @@ command ran and succeeded. `BLOCKED` requires a named missing capability and an 
 | G-18 | No fabricated success | executable | five failure modes ⇒ non-2xx | **FAIL** | WP-09 |
 | G-19 | No secret in client bundle | static | `grep` over `dist/**` | **PASS** (value) / mechanism present | WP-07 |
 | G-20 | No host-specific path/port | static | grep for `/tmp`, `localhost`, literal ports | **FAIL** | WP-07 |
-| G-21 | Server boots under `PORT` | deployment | container run with `PORT=8080` → `/api/health` 200 | **BLOCKED** | WP-07 |
-| G-22 | Production static serving | deployment | `NODE_ENV=production` + deep-route fetch | **UNVERIFIED** | WP-07 |
-| G-23 | Graceful shutdown | deployment | `SIGTERM` → exit 0 within 10 s | **UNVERIFIED** | WP-07 |
+| **G-31** | **AI Studio compatibility gate** (AS-01…AS-16) | **AI Studio + browser + live-service** | [../quality/AI-STUDIO-COMPATIBILITY-GATE.md](../quality/AI-STUDIO-COMPATIBILITY-GATE.md) executed in **both** contexts | **UNVERIFIED** | WP-13 |
+| G-21 | Server boots under `PORT` | deployment (**optional external**) | optional container run with `PORT=8080` → `/api/health` 200 | **BLOCKED** (optional) | WP-07 |
+| G-32 | No mandatory external-platform dependency (static + runtime) | static + AI Studio | no `spawn`, no native dep, no external service required for the full flow | **FAIL** today (`spawn('ffmpeg')`) | WP-01 |
+| G-22 | Production static serving | deployment (**optional external**) | `NODE_ENV=production` + deep-route fetch | **UNVERIFIED** (optional) | WP-07 |
+| G-23 | Graceful shutdown | deployment (**optional external**) | `SIGTERM` → exit 0 within 10 s | **UNVERIFIED** (optional) | WP-07 |
 | G-24 | Live AI smoke | live-service | real script + TTS call recorded | **BLOCKED** (no egress) | WP-10 |
 | G-25 | Browser capability matrix | browser | Chromium + Firefox/Safari where applicable | **UNVERIFIED** | WP-07 |
 | G-26 | Accessibility baseline | browser | keyboard traversal + contrast + labels audit | **UNVERIFIED** | WP-12 |
@@ -48,14 +50,17 @@ command ran and succeeded. `BLOCKED` requires a named missing capability and an 
 |---|---|
 | **NOT READY** | Any P0 gate FAIL, or the behavioural suite does not exist |
 | **ENGINEERING READY** | G-01…G-08, G-10…G-20, G-27…G-30 PASS; G-09/G-21…G-26 may be BLOCKED/UNVERIFIED with named owners |
-| **RUNTIME CERTIFIED** | ENGINEERING READY **and** G-09, G-21, G-22, G-23, G-24, G-25 executed and PASS in a real browser / real deployment |
+| **RUNTIME CERTIFIED** | ENGINEERING READY **and G-31 PASS in both contexts** and G-09, G-24, G-25 executed and PASS. G-21…G-23 are **optional external-deployment** gates and are not required |
 | **PRODUCTION READY** | RUNTIME CERTIFIED, plus monitoring/alerting live (RB-01…RB-09 exercised), a rollback rehearsed, and a soak period with no P0/P1 |
 
 ## Current assessment
 
-**NOT READY.** 5 of 5 executable reproductions fail; 3 P0 defects are open
-(D-001, D-002, D-003); the test suite is 92.7 % non-behavioural; no container has ever been
-run; no browser verification has been executed.
+**NOT READY.** 5 of 6 executable reproductions fail; 3 P0 defects are open (D-001, D-002,
+D-003); the test suite is 92.7 % non-behavioural; **no execution inside Google AI Studio has
+been performed (G-31 UNVERIFIED)**; no browser verification has been executed.
+
+**Target note (2026-09-09).** G-21…G-23 are now **optional external-deployment** gates. They
+no longer gate the AI Studio target. G-31 does.
 
 ## Rules
 

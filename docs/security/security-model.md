@@ -31,7 +31,7 @@ and no decision about authorisation.
 | AI + captions endpoints | **none** | session token (see below) |
 | Export API | `EXPORT_API_TOKEN` **but only enforced when `NODE_ENV === 'production'`** | privileged endpoints closed in **all** environments (D-003) |
 | Static assets | public | public |
-| Cloud Run ingress | default (public) | public for the SPA; API routes protected by the session token |
+| App ingress (AI Studio-managed) | default (public) | public for the SPA; API routes protected by the session token. (Optional external publish path may expose a different ingress — out of scope for correctness.) |
 
 ### Session token (chosen model)
 
@@ -102,7 +102,7 @@ Every server route validates its body against an explicit schema **before** any 
 
 ## 9. Transport
 
-* HTTPS enforced by the host (Cloud Run provides a managed certificate).
+* HTTPS enforced by the host — the Google AI Studio Web App runtime serves the app over HTTPS (as does the optional publish path).
 * `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`,
   `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`,
   and a `Content-Security-Policy` allowing only `'self'` for scripts plus the media sources

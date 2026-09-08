@@ -65,8 +65,9 @@ Per [Google AI Studio Build mode](https://ai.google.dev/gemini-api/docs/aistudio
 2. `GEMINI_API_KEY` is provisioned as a **server-side secret** — do not add it to client code,
    and do not add a `VITE_`-prefixed variant.
 3. Use the **GitHub tab** to push to a branch and continue locally; changes sync back.
-4. **Deploy** publishes to Cloud Run with the key injected server-side; the app must respect
-   the `PORT` contract.
+4. **Publish** (optional) deploys the app from AI Studio with the key injected server-side; the
+   app must honour `process.env.PORT ?? 3000` for that path. Publishing is **not** required for
+   the app to be correct or usable.
 5. If you download the ZIP to host elsewhere, you must set `GEMINI_API_KEY` in that host.
 
 ## 7. Repository hygiene

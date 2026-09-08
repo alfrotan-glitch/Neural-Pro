@@ -10,7 +10,7 @@ Every runbook states: symptom → diagnose → act → verify → escalate.
 
 1. Read the first error line: `logger.error('server.env_missing')` or a thrown config error.
 2. `curl -fsS localhost:$PORT/api/health`.
-3. Check `PORT` is set (Cloud Run injects it; local defaults to 3000).
+3. Check `PORT`. The AI Studio convention is `3000`; the optional external publish path injects `PORT` (commonly `8080`). The app must honour `process.env.PORT ?? 3000`.
 4. Check `node -v` satisfies `engines` (`>=20.18.0 <23`).
 5. If the log shows a native-module failure → `better-sqlite3` was reintroduced; remove it.
 6. **Verify:** `/api/health` returns 200 with `status:'ok'`.
@@ -20,7 +20,7 @@ Every runbook states: symptom → diagnose → act → verify → escalate.
 
 1. `curl -fsS $APP_URL/api/health/ai` → `configured:false`.
 2. Confirm `GEMINI_API_KEY` is present in the service environment (AI Studio: Settings →
-   Secrets; Cloud Run: revision env). Never print the value.
+   Secrets; optional external deployment: revision env). Never print the value.
 3. Redeploy/restart so the process picks it up (the server reads env at boot).
 4. **Verify:** `/api/health/ai` → `configured:true` with the expected `operations` list.
 5. **Do NOT** enable `AI_ALLOW_SIMULATION` to "fix" this. Simulation returns fabricated
@@ -83,7 +83,7 @@ Every runbook states: symptom → diagnose → act → verify → escalate.
 
 ## RB-09 — Rollback
 
-1. Cloud Run: pin the previous revision. No data migration is required (server stateless;
+1. Optional external deployment: pin the previous revision. In AI Studio, republish the previous version. No data migration is required (server stateless;
    export client-side).
 2. Project documents are forward-compatible-by-default: an older client refuses a newer
    `schemaVersion` with a clear message rather than corrupting it.

@@ -1,7 +1,7 @@
-# Runtime Certification Plan
+# Runtime Certification Plan (AI Studio)
 
-**Purpose:** the scripted sequence that turns `ENGINEERING READY` into `RUNTIME CERTIFIED`.
-Nothing here may be claimed before it is executed.
+**Revised 2026-09-09.** Certification is now based on the **Google AI Studio Web App runtime**.
+External deployment (container/Cloud Run) is demoted to an **optional** stage.
 
 ---
 
@@ -9,96 +9,114 @@ Nothing here may be claimed before it is executed.
 
 | Level | Requires |
 |---|---|
-| ENGINEERING READY | all static + executable gates pass; browser/deployment gates may be BLOCKED with named owners |
-| **RUNTIME CERTIFIED** | ENGINEERING READY **and** every step in §2 executed with a recorded result |
+| ENGINEERING READY | static + executable gates pass; AI Studio and browser gates may be `BLOCKED` with named owners |
+| **RUNTIME CERTIFIED** | ENGINEERING READY **and** every stage below executed with a recorded result — **including G-31 (AI Studio compatibility) PASS in both contexts** |
 | PRODUCTION READY | RUNTIME CERTIFIED + monitoring/alerting live + rollback rehearsed + soak clean |
 
-Certification is **per-surface**. Partial certification is recorded per surface; a claim of
-`RUNTIME CERTIFIED` without a surface qualifier means every surface in §2 passed.
+Certification is **per-surface**. `RUNTIME CERTIFIED` without a surface qualifier means every
+surface passed.
+
+**Hard rule:** a claim of RUNTIME CERTIFIED is impossible while the AI Studio compatibility gate
+G-31 is not PASS, because "runtime" *means* the AI Studio Web App runtime.
 
 ## 2. Certification sequence
 
 ### Stage A — Environment readiness (WP-00 / WP-07)
-1. Provision Node matching `engines`; run `npm ci` in a **clean container**. Record exit code.
-2. Provision Chromium (Playwright) with WebCodecs enabled. Record the version and
-   `VideoEncoder.isConfigSupported` output for the codec matrix.
-3. Confirm network egress policy: can the environment reach
-   `generativelanguage.googleapis.com`? If not, Stage E is BLOCKED — record it.
+1. Node matching `engines`; `npm ci` in a clean environment. Record exit code.
+2. Chromium (Playwright) with WebCodecs enabled; record the version and the
+   `VideoEncoder.isConfigSupported` matrix.
+3. **Access to Google AI Studio Build mode for this project**
+   (`ai.studio/apps/bdf5ad65-6c0d-48f4-8ba5-1e1a337f20ce`). If unavailable, Stage C is BLOCKED.
+4. Confirm whether the environment can reach `generativelanguage.googleapis.com`. If not, the
+   live-AI items are BLOCKED — record them, do not substitute.
 
 ### Stage B — Static gates (WP-00 / WP-07 / WP-08)
-4. `npm run typecheck` → 0
-5. `npm run lint` → 0 (boundaries included)
-6. Layer-graph test: no cycle; domain purity
-7. No secret / no host / no port / no absolute path tests
-8. `npm run build` → success; inspect `dist/` size and asset list
+5. `npm run typecheck` → 0
+6. `npm run lint` → 0 (boundaries included)
+7. Layer-graph test: no cycle; domain purity
+8. No secret / no host / no absolute path; **no `spawn` and no native dependency**
+9. `metadata.json` parses and matches the AI Studio manifest schema (AS-INV-13)
+10. `npm run build` → success; inspect `dist/` size and asset list; assert no secret in assets
 
-### Stage C — Executable gates (WP-02 … WP-11)
-9. All six audit reproductions exit 0
-10. Full behavioural suite green; report archived
-11. Parity suite L1 green with a recorded `maxGeometricError`
-12. Resource balance zero across success/failure/cancel/timeout/unmount
-13. Persistence round-trip, missing-asset, quota, corrupt-document tests green
-14. Workflow terminal-state tests green for W1–W5
-15. Server contract tests green (auth, validation, limits, error mapping)
+### Stage C — **AI Studio compatibility gate (WP-13)** — the decisive stage
+11. Open the project in AI Studio Build mode; run `GET /api/runtime/capabilities`.
+12. Execute **G-31 / AS-01…AS-16** in the **preview frame** (context P). Record per-criterion
+    evidence.
+13. **Publish** the app (Starter Tier suffices). Re-execute AS-01…AS-16 against the published
+    URL (context U).
+14. Resolve every `P-01…P-06` runtime unknown with the recorded result.
+15. Write `reports/ai-studio-compatibility-<date>.json` + evidence artefacts.
+16. Any FAIL becomes a defect with an owning WP. Any BLOCKED names the missing capability and an
+    owner.
 
-### Stage D — Browser certification (WP-06 / WP-10)
-16. Launch the app in Chromium with a **local** fixture project (no network media).
-17. Run the **headless-export test**: export with the Preview unmounted; assert the MP4
-    exists, is non-trivial in size, and decodes to the expected frame count and duration.
-18. Run the **pixel-parity suite**; archive the report with `cases`, `passed`, `failed`,
-    `maxPixelDiffRatio`.
-19. Run the **memory-growth test**: 50 export iterations; assert no monotonic heap growth.
-20. Run the **interaction smoke**: import media → edit → save → reload → export; assert no
-    console errors, no unhandled rejections, no error-boundary triggers.
-21. Accessibility smoke: keyboard traversal of the primary flows; label/contrast audit.
-22. Repeat 17 on Firefox and Safari **if** WebCodecs is available there; otherwise record
-    `BLOCKED` per browser with the capability evidence.
+### Stage D — Executable gates (WP-02 … WP-11)
+17. All six audit reproductions exit 0
+18. Full behavioural suite green; report archived
+19. Parity suite L1 green with a recorded `maxGeometricError`
+20. Resource balance zero across success/failure/cancel/timeout/unmount
+21. Persistence round-trip, missing-asset, quota, corrupt-document tests green
+22. Workflow terminal-state tests green for W1–W5
+23. Server contract tests green: auth, validation, limits, error mapping, bounded timeouts
 
-### Stage E — Live-service certification (WP-10)
-23. Deploy to Cloud Run (or run the container locally with a real `GEMINI_API_KEY`).
-24. `GET /api/health` → 200 with the capability block.
-25. `GET /api/health/ai` → `configured: true`.
-26. One real `/api/ai/script` call → 200, schema-valid, record `requestId` and latency.
-27. One real `/api/ai/speech` call → 200; assert the declared sample rate/channels match the
-    decoded audio; record the duration.
-28. Negative tests against the live service: no token ⇒ 401; crafted model id ⇒ 400;
-    N+1 requests ⇒ 429; removed routes ⇒ 410/Gone or 404.
-29. Verify no key material appears in any response or log line.
+### Stage E — Browser certification (WP-06 / WP-10)
+24. Launch the app in Chromium with a **local** fixture project (no network media).
+25. Headless-export test: export with Preview unmounted; assert the MP4 decodes to the expected
+    frame count and duration.
+26. Pixel-parity suite; archive the report with `cases`, `passed`, `failed`, `maxPixelDiffRatio`.
+27. Memory-growth test: 50 export iterations; no monotonic heap growth.
+28. Interaction smoke: import → edit → save → reload → export; no console errors, no unhandled
+    rejections, no error-boundary triggers.
+29. Accessibility smoke: keyboard traversal, labels, contrast.
+30. Repeat 25–28 on Firefox/Safari **where WebCodecs exists**; otherwise record BLOCKED per
+    browser with capability evidence.
 
-### Stage F — Deployment certification (WP-07)
-30. Container boot with `PORT=8080` → `/api/health` 200.
-31. `NODE_ENV=production npm start` → fetch `/` and a deep route → 200 + SPA HTML.
-32. `SIGTERM` → exit 0 within 10 s.
-33. Rollback rehearsal: pin the previous revision, re-run 30.
-34. Scale-to-zero and cold-start check.
+### Stage F — Live-service certification (WP-10)
+31. Against the **published AI Studio app**: `/api/health` → 200 with the capability block.
+32. `/api/health/ai` → `configured: true`.
+33. One real `/api/ai/script` → 200, schema-valid, non-simulated; record `requestId` + latency.
+34. One real `/api/ai/speech` → 200; declared sample rate/channels match the decoded audio;
+    record duration.
+35. Negative tests on the live service: no token ⇒ 401; crafted model id ⇒ 400; N+1 ⇒ 429;
+    removed routes ⇒ 410/404.
+36. Verify no key material appears in any response or log line.
+
+### Stage G — **Optional external deployment** (WP-07) — NOT required for certification
+37. `PORT=8080` boot → `/api/health` 200
+38. `NODE_ENV=production` static serving + deep route
+39. `SIGTERM` → exit 0 within 10 s
+40. Rollback rehearsal
+
+Failing Stage G downgrades the optional external path only. It never affects the AI Studio
+certification.
 
 ## 3. Evidence artefact
 
-Each stage writes a machine-readable record:
-
 ```json
-{ "stage":"D", "surface":"export", "status":"PASS",
-  "commands":[ {"cmd":"npm run test:parity:browser","exit":0,"report":"reports/parity-2026-09-08.json"} ],
-  "cases": 128, "passed": 128, "failed": 0,
-  "environment": { "node":"v22.x", "chromium":"13x", "egress": false },
-  "commit":"<sha>", "executedAt":"2026-09-08T…", "executedBy":"<agent/role>" }
+{ "stage":"C", "surface":"ai-studio", "context":"preview",
+  "status":"PASS",
+  "criteria":[ {"id":"AS-09","status":"PASS","evidence":"reports/…/export-09.mp4",
+                "frames":1350,"durationSec":45.0} ],
+  "unknowns": {"P-01":"download permitted","P-02":"storage not partitioned"},
+  "environment": { "aiStudioAppId":"bdf5ad65-…", "browser":"Chrome 14x" },
+  "commit":"<sha>", "executedAt":"2026-09-…", "executedBy":"<role>" }
 ```
 
 ## 4. Blockers known today
 
 | Stage | Blocker | Unblock owner |
 |---|---|---|
-| D | No browser runtime provisioned in this environment | WP-00 |
-| E | No egress to `generativelanguage.googleapis.com` | WP-10 (run in an environment with egress) |
-| F | No container runtime exercised yet | WP-07 |
-| D | No local fixture media (default project streams from remote hosts) | WP-06 |
+| A/C | **No access to Google AI Studio from this environment** | WP-13 (must be run by a human/agent with AI Studio access) |
+| A/F | No egress to `generativelanguage.googleapis.com` | WP-10 / Stage F in an environment with egress |
+| E | No browser runtime provisioned here | WP-00 |
+| E | No local fixture media (default project streams from remote hosts) | WP-06 |
+| G | No container runtime exercised | WP-07 (optional stage) |
 
-A stage that cannot run is recorded `BLOCKED` with the blocker and the owner. **BLOCKED is not
-PASS.** Certification of a surface that depends on a BLOCKED stage is impossible; the honest
-answer is `ENGINEERING READY — RUNTIME CERTIFICATION PENDING`.
+A stage that cannot run is recorded **BLOCKED** with the blocker and the owner.
+**BLOCKED is not PASS.** With Stage C blocked, the honest claim is
+`ENGINEERING READY — RUNTIME CERTIFICATION PENDING`.
 
 ## 5. Re-certification triggers
 
-Re-run the full sequence after any change to: the render plan, either renderer, the media
-pool, the encoder path, the persistence schema, the AI operation contracts, or the deployment
-configuration. Re-run Stage D after any change to `VideoPlayer.tsx` or `VideoStudioPro.tsx`.
+Re-run Stage C after any change to: the export path, the server boundary, persistence,
+`metadata.json`, `vite.config.ts`, the AI surface, or the publish configuration.
+Re-run Stage E after any change to `VideoPlayer.tsx`, `VideoStudioPro.tsx` or either renderer.

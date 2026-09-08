@@ -129,7 +129,7 @@ is deleted.
 
 ## 8. CORS / headers
 
-* No CORS is required for same-origin deployment (Cloud Run serves both SPA and API).
+* No CORS is required for same-origin deployment — in the **Google AI Studio Web App runtime** the app and its API are served from the same origin (this also holds for the optional publish path).
 * Security headers added: `Content-Security-Policy`, `X-Content-Type-Options: nosniff`,
   `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`,
   `Strict-Transport-Security` (when served over HTTPS).

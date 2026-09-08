@@ -89,7 +89,7 @@ defect evidence.
 | ST-5 | Comments explain *why*; the code explains *what*. No comment may state a fact the code
         contradicts (ADR-000). |
 
-## 9. Portability (AI Studio / Cloud Run)
+## 9. Portability (AI Studio + optional external deployment)
 
 | Rule | Statement |
 |---|---|

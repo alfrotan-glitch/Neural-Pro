@@ -228,3 +228,20 @@ Every run emits structured events (see [../operations/logging.md](../operations/
 
 `event ∈ { started, step_started, step_retry, step_succeeded, step_failed, progress,
 cancelled, timed_out, completed, recovered }`.
+
+---
+
+## Runtime reconciliation note (2026-09-09)
+
+The decision to place the workflow engine **in the application** is reaffirmed and now also
+justified by the target runtime: the **Google AI Studio Web App runtime** offers no job runner,
+no durable server storage for job state, and allocates CPU during request processing — so
+server-side background workflows would be unreliable.
+
+Additional runtime-derived requirements:
+
+* every server call made by a workflow step must be **timeout-bounded and cancellable from the
+  client** (request-cancellation behaviour through the AI Studio proxy is runtime-unknown `P-05`);
+* the export workflow gains a **delivery step** with ordered fallbacks, because download
+  behaviour inside the AI Studio preview frame is runtime-unknown `P-01`;
+* W5 (recovery) must also clean up state left behind by an interrupted AI Studio session.

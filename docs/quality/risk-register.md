@@ -28,7 +28,7 @@ Machine-readable summary table, then one section per risk with detail.
 | R-012 | `ondequeue` handler accumulation during back-pressure | P1 | Medium | memory growth, stall | WP-11 | `repro-ondequeue-leak.cjs` → 0 | OPEN |
 | R-013 | Environment-conditional authorisation | P1 | Medium | auth bypass outside prod | WP-01 | dev-mode auth test | OPEN |
 | R-014 | Three competing export dispatch authorities + polling orchestrator | P2 | Medium | latent double-dispatch / stuck queue | WP-04 | `repro-queue-deadlock.mts` (guard, currently 0) | OPEN |
-| R-015 | Hard-coded port and `/tmp` paths break Cloud Run deploy | P1 | High | deploy failure | WP-07 | container boot with `PORT=8080` | OPEN |
+| R-015 | ~~Hard-coded port breaks Cloud Run deploy~~ **RECLASSIFIED 2026-09-09**: `3000` is the **AI Studio convention**; the app runs there today. Retained as a **portability** defect for optional external deployment | **P2** (was P1) | Low | external deploy only | WP-07 | `process.env.PORT ?? 3000` + optional container boot | OPEN |
 | R-016 | `better-sqlite3` breaks `npm install` | P1 | High | no reproducible install | WP-07 | `npm ci` in a clean container | OPEN |
 | R-017 | No error boundary ⇒ invariant throw = white screen | P1 | Medium | total UI loss | WP-07 | boundary test | OPEN |
 | R-018 | Two fps authorities + hard-coded caption fps | P2 | High | wrong frame counts, wrong timecodes | WP-11 | fps-authority test | OPEN |
@@ -46,6 +46,16 @@ Machine-readable summary table, then one section per risk with detail.
 | R-030 | Live Gemini behaviour unverifiable in this environment | P2 | Medium | model/response assumptions untested | WP-09 | live-service run | BLOCKED |
 | R-031 | Concurrent/parallel export promise not honoured | P2 | Low | user confusion | WP-04 | concurrency test | OPEN |
 | R-032 | Export queue lost on reload (jobs are in-memory only) | P3 | Medium | user confusion | WP-10 | documented limitation + test | ACCEPTED (documented) |
+| **R-033** | **Download of the exported artifact may be blocked inside the AI Studio preview frame** (`P-01`): the whole deliverable path is `<a download>` + `link.click()` (`VideoStudioPro.tsx:619`, `InspectorEngine.tsx:473`, `ExportToast.tsx:121`, `RenderPipeline.ts:179`) | P1 | Medium | export completes but the user cannot save → silent product failure | WP-04 (fallbacks), WP-13 (verify) | G-31/AS-15 in both contexts | **UNVERIFIED** |
+| **R-034** | **In-frame storage may be partitioned or denied** (`P-02`) → projects/assets may not survive reload inside AI Studio | P1 | Medium | persistence failure | WP-05 (bundle fallback), WP-13 (verify) | G-31/AS-08 in both contexts | **UNVERIFIED** |
+| **R-035** | **WebCodecs / OfflineAudioContext availability or throttling inside the frame** (`P-03`) | P1 | Low | export fails on some contexts | WP-07 (probe), WP-13 (verify) | G-31/AS-09 | **UNVERIFIED** |
+| **R-036** | **CSP in the frame may block canvas capture, workers or `media-src`** (`P-04`) | P2 | Low | export/decode failure | WP-13 | G-31/AS-01, AS-09 | **UNVERIFIED** |
+| **R-037** | **Proxy behaviour for long requests and client aborts** (`P-05`) | P2 | Medium | hangs, misleading errors | WP-04 (client-enforced timeouts), WP-13 | G-31/AS-03, AS-12 | **UNVERIFIED** |
+| **R-038** | **Dev container ≠ published app** (`P-06`): CPU, memory, timeouts, origin | P1 | Medium | passes in preview, fails when published | WP-13 | G-31 executed in both contexts | **UNVERIFIED** |
+| **R-039** | **No runtime capability detection** (D-030): required browser capabilities are used without probing | P1 | High | obscure failures instead of actionable ones | WP-07 | capability probe tests | OPEN |
+| **R-040** | **AI Studio app manifest was unexamined and scheduled for deletion** as a scratch file (D-029) | P1 | High | deleting `metadata.json` would break the AI Studio app contract and its permission model | WP-12 (protect), WP-13 | manifest test | **CLOSED** (corrected 2026-09-09) |
+| **R-041** | **Server operations unbounded**: no timeout/retry bound on AI calls; long-running server work is unreliable in the AI Studio runtime (CPU during request processing) | P1 | Medium | hangs, cost, instance pressure | WP-09 | timeout + bounded-retry tests | OPEN |
+| **R-042** | **Sharing bills the owner's key**: an unauthenticated or unrestricted AI surface turns every shared user into a cost incident | P0 | High | unbounded billing | WP-01 | operation allowlist + rate limits | OPEN |
 
 ---
 

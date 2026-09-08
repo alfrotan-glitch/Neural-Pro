@@ -1,6 +1,10 @@
 # ADR-001 — Google AI Studio Execution Model and Deployment Target
 
-**Status:** Accepted
+**Status:** **Partially superseded** — the Cloud-Run-targeting parts (Decision items 1 and 4,
+and the Consequences section on the Cloud Run contract) are **superseded by
+[ADR-015](ADR-015-ai-studio-web-app-primary-runtime.md)** (2026-09-09).
+The parts recording that AI Studio Build mode provides a client + server-side Node runtime,
+server-side secrets and GitHub sync remain **valid and authoritative**.
 **Date:** 2026-09-08
 
 ## Context

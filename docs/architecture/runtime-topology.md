@@ -1,144 +1,125 @@
 # Runtime Topology
 
-**Status:** current (measured) + target. Evidence: source inspection, live server probes,
-and [Google AI Studio Build mode documentation](https://ai.google.dev/gemini-api/docs/aistudio-build-mode).
+**Revised 2026-09-09.** Primary target: **Google AI Studio Web App runtime**.
+Capability detail: [AI-STUDIO-MEDIA-RUNTIME.md](AI-STUDIO-MEDIA-RUNTIME.md).
+Correction record: [../decisions/AI-STUDIO-TARGET-RUNTIME-CORRECTION.md](../decisions/AI-STUDIO-TARGET-RUNTIME-CORRECTION.md).
 
 ---
 
 ## 1. Google AI Studio execution model — what it actually is
 
-**Reconciliation required.** The directive asks for "Google AI Studio workflows". Research
-shows three distinct things that are commonly conflated, and only two apply to this repo:
+**Reconciled.** Three distinct things are commonly conflated; two apply:
 
-| Platform | What it is | Applies to Neural-Pro? |
+| Platform | What it is | Applies? |
 |---|---|---|
-| **AI Studio Build mode** | Generates/maintains a full-stack app: React client **+ Node.js server runtime**; secrets injected server-side; one-click deploy to **Cloud Run**; GitHub tab for local dev ↔ AI Studio sync. | **YES.** This is the deployment + development loop. |
-| **Google Opal** (Google Labs) | A *separate* product: visual node-based workflow editor (input nodes → generate nodes → output nodes), cloud execution, shareable URLs. | **NO.** Opal cannot host this codebase; it generates mini-apps from prompts. |
-| **Antigravity agent** (in AI Studio) | The agentic coding harness that edits the project with full-repo context. | **YES.** This is how "development through AI Studio" actually manifests. |
+| **AI Studio Build mode (Web App)** | Authoring + running environment: a React client **and** a server-side **Node.js runtime**; npm packages; server-side secrets; Firebase provisioning on request; preview frame; Publish; GitHub two-way sync | **YES — this is the target** |
+| **Google Opal** | A separate product: visual node-based mini-app builder | **NO** — cannot host this codebase |
+| **Antigravity agent** | The agentic harness that edits the project with full-repo context | **YES** — this is how "development through AI Studio" manifests |
 
-**Conclusion (ADR-001):** there is **no first-class Google AI Studio workflow *runtime*** that
-will execute Neural-Pro's workflows. Therefore the workflow engine must live **inside the
-application**, and must be shaped so it can run on Cloud Run's constraints and be authored by
-an agent. "AI Studio compatibility" reduces to a concrete deployment contract (§3).
+**There is no platform workflow *runtime* that executes Neural-Pro's workflows.** W1–W5 are
+in-application, and the workflow engine lives in the app (ADR-003).
 
-### Verified platform facts
+### Verified platform facts (fetched 2026-09-09)
 
 | Fact | Source | Impact |
 |---|---|---|
-| Build mode produces client + **server-side Node.js runtime**; npm packages allowed | ai.google.dev Build mode docs | The Express server is legitimate and supported |
-| `GEMINI_API_KEY` is auto-configured as a **server-side secret**; never in client code | same | The current server-side proxy is the correct pattern — keep it |
-| Deployment target is **Cloud Run**, public URL, key present in server env | same | PORT contract applies |
-| Cloud Run sets `PORT` (default 8080); container **must** bind `0.0.0.0:$PORT` | Cloud Run docs | **D-015 is a deployment blocker** |
-| ZIP download requires setting `GEMINI_API_KEY` in the hosting env | same | `.env.example` must be complete |
-| GitHub tab: develop locally, push, pull back into AI Studio | same | The multi-agent work-package model is compatible with this loop |
-| Apps built before 2026-05-14 are auto-upgraded to server-side Gemini | same | Current client has no Gemini client; already compliant |
+| Web apps get a full-stack environment: React client + **Node.js server-side runtime** (secure API calls, database connections, npm) | Build mode doc | `server.ts` is legitimate |
+| `GEMINI_API_KEY` auto-configured as a **server-side secret**; never in client code | Build mode doc, *API Key management* | The gateway pattern is confirmed and mandatory |
+| Firebase Firestore + Auth can be auto-provisioned by the agent | Build mode / fullstack doc | Optional future persistence adapter |
+| Server-side runtime can manage **real-time multiplayer state and connections**; "in Build mode, your app is in a **dev container**" | fullstack doc | Dev ≠ published; verify both |
+| **"AI Studio apps are standard apps running in a Cloud Run container."** No built-in storage: "We are working on adding direct support for storage in the future" | Build mode doc, FAQ | Substrate is containerised; **no server-side durable storage** |
+| Network-accessible storage is usable "so long as there is not a firewall preventing access from a dynamic IP range" | same | External stores are an *option*, not a default |
+| Device/Navigator APIs are gated by `metadata.json` → `requestFramePermissions` | Build mode doc, FAQ | Our manifest requests **none** |
+| Publish → "Each Google AI Studio deployment creates a corresponding service in Cloud Run"; Starter Tier ≤ 2 apps, 1 region, no billing; custom `*.ai.studio` subdomains | Deploying doc | Publishing exists and is optional |
+| Sharing: API calls count toward the owner's usage limits | Build mode doc | Cost control is a product requirement |
 
----
+### Repository-side evidence that this app *is* an AI Studio app
 
-## 2. Current topology
-
-### 2.1 Development (`npm run dev`)
-
-```
-tsx server.ts
-  ├── express app on 0.0.0.0:3000        ← PORT HARD-CODED (server.ts:197)
-  ├── await import('vite') → middlewareMode, appType 'spa'
-  │     └── Vite HMR websocket on :24678
-  └── routes (see contracts/api.md)
-```
-
-Measured: server boots, `/api/health` returns 200. Vite rejects a proxied host with
-**HTTP 403 "Blocked request. This host is not allowed."** unless `server.allowedHosts` is set —
-observed live; `allowedHosts: true` was added to `vite.config.ts` during the audit.
-
-### 2.2 Production (`npm run build && npm start`)
-
-```
-node dist/server.cjs
-  ├── NODE_ENV=production path: express.static(dist) + SPA fallback
-  ├── Vite is NOT loaded (good — kept out of the production graph)
-  └── app.listen(3000, '0.0.0.0')
-```
-
-Never exercised. `dist/` builds cleanly (2 271 modules, 8.6 s).
-
-### 2.3 Network egress
-
-| Destination | Used by | Failure mode today |
-|---|---|---|
-| `generativelanguage.googleapis.com` | `server.ts` via `@google/genai` | **Any** failure → HTTP 200 + fabricated content (D-009) |
-| `commondatastorage.googleapis.com` | default demo video clips | silent broken media |
-| `www.soundhelix.com` | default demo audio clip | silent broken media |
-| external logos (`customLogoUrl`) | `loadExportImageSource` | export throws `AudioRenderError`-class failure |
-
-### 2.4 Filesystem
-
-| Path | Owner | Notes |
-|---|---|---|
-| `/tmp/session_<32 hex>` | `server.ts` export pipeline | **Absolute POSIX path ×6**; Windows-incompatible; Cloud Run `/tmp` is RAM-backed |
-| `dist/` | build | gitignored ✔ |
-| `localStorage` | browser persistence | holds blob URLs → dead on reload (D-006) |
-| repo root | 9 committed scratch files | `inspect.txt`, `phaseG_test_output*.txt`, `fix_typecheck.py`, `find_*.cjs` |
-
-### 2.5 Browser capability surface (required, undeclared)
-
-`VideoEncoder` · `AudioEncoder` · `VideoFrame` · `AudioData` · `createImageBitmap` ·
-`OfflineAudioContext` · `structuredClone` · `CanvasRenderingContext2D.roundRect` ·
-`AudioContext` (with `webkitAudioContext` fallback) · `AbortSignal` · `WeakMap`/`WeakSet`.
-
-**No capability probe exists.** On an unsupported browser the user gets a thrown error inside
-an async effect and a Persian toast, not a diagnosis.
-
----
-
-## 3. Target topology
-
-### 3.1 Deployment contract (normative)
-
-| Property | Requirement |
+| Evidence | Meaning |
 |---|---|
-| Port | `const port = Number(process.env.PORT) || 3000` — **never** hard-coded |
-| Bind | `0.0.0.0` (already correct) |
-| Health | `GET /api/health` → `{status, time, version, capabilities}` including browser-required capability list and `aiConfigured: boolean` |
-| Static | `express.static(dist)` + SPA fallback (already correct) |
-| Vite | dev-only, dynamically imported (already correct) |
-| Filesystem | `os.tmpdir()` with `NEURALPRO_TMPDIR` override; **no writes outside it** |
-| FFmpeg | **Removed** (ADR-004) — no undeclared system binaries |
-| Secrets | server-only; never in the client bundle; never logged |
-| Graceful shutdown | `SIGTERM` → stop accepting, drain, close |
-| Statelessness | No request may depend on prior in-process state except the documented session table |
+| `metadata.json` with `majorCapabilities: ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]` | AI Studio app manifest |
+| `README.md`: "View your app in AI Studio: https://ai.studio/apps/bdf5ad65-…" | Live AI Studio app id |
+| `.env.example`: "AI Studio automatically injects this at runtime from user secrets" / `APP_URL` = "the Cloud Run service URL" | AI Studio-injected environment |
+| `vite.config.ts`: "HMR is disabled in AI Studio via `DISABLE_HMR`"; `allowedHosts: true` for the proxied host | AI Studio dev loop |
+| `server.ts` sends `User-Agent: aistudio-build` on Gemini calls (4 sites) | Built in Build mode |
 
-### 3.2 Environment contract (normative — see contracts/environment.md)
+---
 
-| Variable | Layer | Required | Default | Notes |
-|---|---|---|---|---|
-| `PORT` | server | no | `3000` | **Cloud Run injects it** |
-| `NODE_ENV` | server | no | — | `production` gates static serving and error verbosity |
-| `GEMINI_API_KEY` | server | yes* | — | AI Studio injects as a server secret. `*required for AI features; absence must be explicit` |
-| `EXPORT_API_TOKEN` | server | **yes** | — | After WP-01, export API is **closed** without it, in **all** environments |
-| `DISABLE_HMR` | build | no | — | Vite only |
-| `APP_URL` | server | no | — | **Currently documented but unused** — either use it or remove it |
-| `NEURALPRO_TMPDIR` | server | no | `os.tmpdir()` | target |
-| `AI_MODEL_*` | server | no | see ai-architecture | server-owned model IDs |
+## 2. Topology
 
-### 3.3 Capability negotiation (new)
-
-`GET /api/health` returns the server's capability set; `GET /api/health/ai` reports whether
-`GEMINI_API_KEY` is configured. The client's "API Connected" badge reads the latter instead of
-being hard-coded (D-009).
-
-### 3.4 Process model (target)
+### 2.1 AI Studio (primary)
 
 ```
-Cloud Run container (stateless, PORT-driven, scaled to zero)
-    └── Node server
-          ├── /api/health, /api/health/ai      (unauthenticated, read-only)
-          ├── /api/ai/<operation>              (allowlisted, validated, rate-limited)
-          ├── /api/captions/*                  (validated, rate-limited)
-          └── static SPA
-Browser
-    └── SPA
-          ├── WorkflowRuntime (in-page, single-owner, cancellable)
-          ├── ExportMediaPool (independent of Preview DOM)
-          └── AssetRegistry (IndexedDB-backed)
+┌─ Google AI Studio ─────────────────────────────────────────────────────────┐
+│  Code tab (Antigravity)   GitHub tab (two-way sync)   Secrets panel          │
+│                                                                             │
+│  ┌─ Preview frame (dev container) ────────────────────────────────────────┐  │
+│  │  React SPA  ← executes in the END USER's browser                       │  │
+│  │   · Canvas2D, WebCodecs, Web Audio, IndexedDB, Blob URLs               │  │
+│  │   · Export runs HERE (browser-native)                                  │  │
+│  │   · Capability probe at startup                                        │  │
+│  └───────────────────────────┬───────────────────────────────────────────┘  │
+│                              │ same-origin HTTP                             │
+│  ┌─ Server-side Node.js runtime ─────────────────────────────────────────┐  │
+│  │  /api/health · /api/health/ai · /api/runtime/capabilities             │  │
+│  │  /api/ai/{script,speech} · /api/captions/{generate,refine,parse,srt}  │  │
+│  │  npm packages · process.env.GEMINI_API_KEY (secret)                    │  │
+│  │  NO media processing · NO durable writes · NO background jobs          │  │
+│  └───────────────────────────┬───────────────────────────────────────────┘  │
+└──────────────────────────────┼──────────────────────────────────────────────┘
+                               ▼
+                  generativelanguage.googleapis.com  (metered)
+```
+
+### 2.2 Published app (same shape, different context)
+
+```
+https://<name>.ai.studio   (or the AI Studio-provisioned service URL)
+   → same client bundle, same server runtime, same secrets
+   → DIFFERENT frame/origin context ⇒ storage and download behaviour must be re-verified (P-02, P-01)
+```
+
+### 2.3 Local development
+
+```
+tsx server.ts → express on 0.0.0.0:3000 + Vite middleware (HMR on demand)
+```
+
+Measured: boots; `/api/health` → 200. Without `server.allowedHosts`, Vite rejects proxied hosts
+with HTTP 403 — fixed during the audit.
+
+## 3. Network egress
+
+| Destination | Direction | Failure mode today |
+|---|---|---|
+| `generativelanguage.googleapis.com` | server (AI Studio runtime) | any failure → HTTP 200 + fabricated content (D-009) |
+| `commondatastorage.googleapis.com` | browser (demo video) | silent broken media |
+| `www.soundhelix.com` | browser (demo audio) | silent broken media |
+| arbitrary `customLogoUrl` | browser | export throws, unnamed clip |
+
+## 4. Filesystem and storage
+
+| Layer | Writable | Durable | Use |
+|---|---|---|---|
+| AI Studio server container | yes (substrate) | **no** — ephemeral, no built-in storage | nothing. The `/tmp/session_*` pipeline is removed |
+| Browser IndexedDB | yes | yes (origin-scoped; frame behaviour = `P-02`) | **canonical** durable store for assets + documents |
+| Browser `localStorage` | yes | yes, ~5 MB | UI preferences only |
+| Blob/object URLs | in-memory | **no** | runtime handles only (INV-009 / AS-INV-06) |
+
+## 5. Process model (target)
+
+```
+AI Studio Web App
+  └── Node server (stateless, bounded, timeout-limited)
+        ├── health + capability endpoints        (unauthenticated, read-only)
+        ├── /api/ai/<operation>                  (allowlisted, validated, rate-limited)
+        ├── /api/captions/<operation>            (validated, rate-limited)
+        └── static SPA
+Browser (user's)
+  └── SPA
+        ├── CapabilityProbe
+        ├── WorkflowRuntime   (W1–W5; owns cancellation, retry, timeout, recovery)
+        ├── AssetRegistry     (IndexedDB; AssetId + measured media properties)
+        ├── ExportMediaPool   (detached elements; independent of Preview DOM)
+        └── Renderers         (DOM preview | Canvas export — one canonical plan)
 ```
