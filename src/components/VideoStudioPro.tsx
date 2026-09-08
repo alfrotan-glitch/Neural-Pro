@@ -18,7 +18,8 @@ import { getClipPlaybackRate, getClipSourceRange } from '../features/video-studi
 import { RenderPipeline } from '../core/engine/RenderPipeline';
 import { normalizeCyberpunkSubscribeProperties } from '../core/engine/cyberpunkSubscribeModel';
 import { CanvasExportRenderer } from '../core/engine/render/CanvasExportRenderer';
-import { collectExportVideoElements } from '../core/engine/render/ExportMediaRegistry';
+import { ExportMediaPool } from '../infra/media/ExportMediaPool';
+import { resolveMediaForClip } from '../domain/export/resolveMediaForClip';
 import type { ExportJob, ExportResolution } from '../store/useExportStore';
 import type { ClipNode } from '../features/video-studio/project/types';
 import { addAssetToTracks } from '../features/video-studio/project/services/projectService';
@@ -97,7 +98,7 @@ export default function VideoStudioPro({ projectName, initialScript, audioUrl, o
   
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const exportRendererRef = useRef<CanvasExportRenderer | null>(null);
-  const exportMediaRegistryRef = useRef<ReadonlyMap<string, HTMLVideoElement> | null>(null);
+  const exportMediaPoolRef = useRef<ExportMediaPool | null>(null);
   if (!exportRendererRef.current) {
     exportRendererRef.current = new CanvasExportRenderer();
   }
@@ -196,7 +197,10 @@ export default function VideoStudioPro({ projectName, initialScript, audioUrl, o
       activeExportProjectSnapshotRef.current = null;
       activeExportProjectNameRef.current = null;
       clearExportOverlayImageCache();
-      exportMediaRegistryRef.current = null;
+      if (exportMediaPoolRef.current) {
+        exportMediaPoolRef.current.dispose();
+        exportMediaPoolRef.current = null;
+      }
     };
   }, []);
 
@@ -525,7 +529,14 @@ export default function VideoStudioPro({ projectName, initialScript, audioUrl, o
       setExportProgress(31);
       clearExportOverlayImageCache();
       await preloadExportOverlayImages();
-      exportMediaRegistryRef.current = collectExportVideoElements();
+      
+      const exportMediaPool = new ExportMediaPool();
+      exportMediaPoolRef.current = exportMediaPool;
+      const mediaRequests = scopedTracks
+        .flatMap((t) => t.clips)
+        .map(resolveMediaForClip)
+        .filter((r): r is NonNullable<typeof r> => r !== null);
+      await exportMediaPool.prepare(mediaRequests, activeSignal ?? undefined);
 
       // ----------------------------------------------------
       // PHASE 2: ADVANCED FRAME-BY-FRAME SEQUENTIAL VIDEO EXPORT
@@ -555,7 +566,7 @@ export default function VideoStudioPro({ projectName, initialScript, audioUrl, o
         await seekActiveVideoClips(
           scopedTracks,
           targetTime,
-          exportMediaRegistryRef.current ?? new Map(),
+          exportMediaPoolRef.current?.getVideoMap() ?? new Map(),
           activeSignal ?? undefined,
         );
 
@@ -578,7 +589,7 @@ export default function VideoStudioPro({ projectName, initialScript, audioUrl, o
           {
             state: renderState,
             imageCache: exportOverlayImageCacheRef.current,
-            mediaByClipId: exportMediaRegistryRef.current ?? new Map(),
+            mediaByClipId: exportMediaPoolRef.current?.getVideoMap() ?? new Map(),
           },
         );
 
@@ -635,7 +646,10 @@ export default function VideoStudioPro({ projectName, initialScript, audioUrl, o
         console.error("Pipeline error:", outerErr);
       } finally {
         clearExportOverlayImageCache();
-        exportMediaRegistryRef.current = null;
+        if (exportMediaPoolRef.current) {
+          exportMediaPoolRef.current.dispose();
+          exportMediaPoolRef.current = null;
+        }
         setIsExporting(false);
         activeExportSignalRef.current = null;
         activeExportSettingsRef.current = null;

@@ -19,9 +19,9 @@ function finiteOr(value: unknown, fallback: number): number {
  * in the same percentage-of-composition coordinate system as ClipNode.transform.
  */
 export function getImageToVideoAnimationState(clip: ClipNode, projectTime: number): ImageToVideoAnimationState {
-  const baseScale = finiteOr(clip.transform.scale, 100);
-  const baseX = finiteOr(clip.transform.x, 0);
-  const baseY = finiteOr(clip.transform.y, 0);
+  const baseScale = finiteOr(clip.transform?.scale, 100);
+  const baseX = finiteOr(clip.transform?.x, 0);
+  const baseY = finiteOr(clip.transform?.y, 0);
 
   if (!clip.properties?.imageToVideoEnabled || !clip.properties?.imageUrl) {
     return { x: baseX, y: baseY, scale: baseScale };

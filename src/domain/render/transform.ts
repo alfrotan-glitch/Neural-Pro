@@ -1,4 +1,4 @@
-import type { ClipNode } from '../../project/types/project';
+import type { ClipNode } from '../../features/video-studio/project/types/project';
 
 export interface CanonicalClipTransform {
   x: number;

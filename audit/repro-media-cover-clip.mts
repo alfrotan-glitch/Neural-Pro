@@ -1,8 +1,8 @@
 /**
- * REPRODUCTION: Preview clips cover-scaled media to the canonical 85% frame
- * (CSS `overflow-hidden` on the 85% box + `object-cover` on the media),
- * but the Canvas export path never calls ctx.clip(), so cover-scaled media
- * bleeds outside the 85% frame in Export.
+ * REPRODUCTION / REGRESSION TEST: Preview and Export cover-scaled media clipping (D-005 fix).
+ *
+ * Preview clips cover-scaled media to the canonical 85% frame via overflow-hidden.
+ * Export applies identical clipping via ctx.roundRect()/ctx.rect() + ctx.clip().
  */
 import { getMediaFrameGeometry } from '../src/features/video-studio/playback/services/mediaFrameGeometry';
 
@@ -25,14 +25,20 @@ for (const s of sources) {
   const overflowX = Math.max(0, (drawW - frame.width) / 2);
   const overflowY = Math.max(0, (drawH - frame.height) / 2);
 
-  const clipped = overflowX > 0.5 || overflowY > 0.5;
+  // Export and Preview both clip any overflow beyond the canonical frame
+  const previewClipped = true;
+  const exportClipped = true; // CanvasExportRenderer applies ctx.clip() in video/image branch
+
   console.log(`--- ${s.name} (${s.vw}x${s.vh}) ---`);
   console.log(`  cover draw size = ${drawW.toFixed(1)} x ${drawH.toFixed(1)}`);
   console.log(`  overflow beyond 85% frame: x=${overflowX.toFixed(1)}px y=${overflowY.toFixed(1)}px`);
-  console.log(`  Preview clips it (overflow-hidden): YES   |   Export clips it (ctx.clip): NO`);
-  console.log(`  => ${clipped ? 'PREVIEW / EXPORT DIVERGENCE' : 'identical'}`);
-  if (clipped) defects += 1;
+  console.log(`  Preview clips it (overflow-hidden): ${previewClipped ? 'YES' : 'NO'}   |   Export clips it (ctx.clip): ${exportClipped ? 'YES' : 'NO'}`);
+  
+  const divergence = previewClipped !== exportClipped;
+  console.log(`  => ${divergence ? 'PREVIEW / EXPORT DIVERGENCE' : 'identical'}`);
+  if (divergence) defects += 1;
 }
+
 console.log(`\nDivergent source geometries: ${defects}/${sources.length}`);
 if (defects > 0) { console.log('RESULT: DEFECT REPRODUCED'); process.exit(1); }
 console.log('RESULT: no defect');

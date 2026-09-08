@@ -23,6 +23,34 @@ function audioRequired(settings: ExportJob['settings']): boolean {
   return settings.audioBitrate !== undefined;
 }
 
+export async function waitForEncoderQueue(
+  encoder: { encodeQueueSize: number; ondequeue: ((this: any, ev?: any) => any) | null },
+  maxQueue = 4,
+): Promise<void> {
+  while (encoder.encodeQueueSize > maxQueue) {
+    await new Promise<void>((resolve) => {
+      let timer: any = null;
+      const cleanup = () => {
+        if (timer !== null) {
+          if (typeof window !== 'undefined') window.clearTimeout(timer);
+          else clearTimeout(timer);
+          timer = null;
+        }
+        encoder.ondequeue = null;
+      };
+      encoder.ondequeue = () => {
+        cleanup();
+        resolve();
+      };
+      const setTimer = typeof window !== 'undefined' ? window.setTimeout : setTimeout;
+      timer = setTimer(() => {
+        cleanup();
+        resolve();
+      }, 100);
+    });
+  }
+}
+
 function assertSupportedConfiguration(settings: ExportJob['settings']): void {
   // Stage 1 deliberately uses one production encoder path. The current
   // browser implementation is an H.264/AAC MP4 pipeline. Unsupported UI
@@ -135,19 +163,8 @@ export async function exportVideoWebCodecs(
         throw signal.reason instanceof Error ? signal.reason : new Error('Export cancelled.');
       }
 
-      while (videoEncoder.encodeQueueSize > 4) {
-        await new Promise<void>((resolve) => {
-          const previous = videoEncoder.ondequeue;
-          const timer = window.setTimeout(resolve, 100);
-          videoEncoder.ondequeue = () => {
-            window.clearTimeout(timer);
-            videoEncoder.ondequeue = previous;
-            resolve();
-          };
-        });
-
-        if (encoderError) throw encoderError;
-      }
+      await waitForEncoderQueue(videoEncoder, 4);
+      if (encoderError) throw encoderError;
 
       const canvas = await renderFrame(frameIndex, signal);
       if (!canvas) {
@@ -218,17 +235,7 @@ export async function exportVideoWebCodecs(
             throw signal.reason instanceof Error ? signal.reason : new Error('Export cancelled.');
           }
 
-          while (audioEncoder.encodeQueueSize > 4) {
-            await new Promise<void>((resolve) => {
-              const previous = audioEncoder.ondequeue;
-              const timer = window.setTimeout(resolve, 100);
-              audioEncoder.ondequeue = () => {
-                window.clearTimeout(timer);
-                audioEncoder.ondequeue = previous;
-                resolve();
-              };
-            });
-          }
+          await waitForEncoderQueue(audioEncoder, 4);
 
           const frameCount = Math.min(framesPerChunk, audioBuffer.length - offset);
           const planarData = new Float32Array(frameCount * channels);

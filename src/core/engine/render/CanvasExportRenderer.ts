@@ -3,7 +3,7 @@ import { CaptionRenderer } from '../CaptionRenderer';
 import { normalizeCyberpunkSubscribeProperties, CYBERPUNK_LOGO_PRESETS } from '../cyberpunkSubscribeModel';
 
 import { buildPreviewCompositorIndex, selectActivePreviewCompositorPlan, type PreviewCompositorIndex } from '../../../features/video-studio/playback/compositor/previewCompositorIndex';
-import { getMediaFrameGeometry } from '../../../features/video-studio/playback/services/mediaFrameGeometry';
+import { getMediaFrameGeometry, MEDIA_FRAME_CORNER_RADIUS } from '../../../features/video-studio/playback/services/mediaFrameGeometry';
 import { getMediaVisualEffects } from '../../../features/video-studio/playback/services/mediaVisualEffects';
 import { getImageToVideoAnimationState } from '../../../features/video-studio/playback/services/imageToVideoAnimation';
 import { getCanonicalClipTransform, getCanvasTransformTranslation } from '../../../features/video-studio/playback/services/clipTransformModel';
@@ -69,10 +69,20 @@ export class CanvasExportRenderer {
       const boxHeight = mediaFrame.height;
       const drawX = -boxWidth / 2;
       const drawY = -boxHeight / 2;
+
+      ctx.save();
+      ctx.beginPath();
+      if (typeof ctx.roundRect === 'function') {
+        ctx.roundRect(drawX, drawY, boxWidth, boxHeight, MEDIA_FRAME_CORNER_RADIUS);
+      } else {
+        ctx.rect(drawX, drawY, boxWidth, boxHeight);
+      }
+      ctx.clip();
+
       let drawn = false;
       if (clip.properties.videoUrl) {
         const videoEl = context.mediaByClipId.get(clip.id);
-        if (videoEl && videoEl.readyState >= 2) {
+        if (videoEl && videoEl.readyState >= 1) {
           const vw = videoEl.videoWidth;
           const vh = videoEl.videoHeight;
           if (vw && vh) {
@@ -86,7 +96,7 @@ export class CanvasExportRenderer {
           drawn = true;
         }
       } else if (clip.properties.imageUrl) {
-        const imageSource = context.imageCache.get(clip.properties.imageUrl);
+        const imageSource = context.imageCache.get(clip.properties.imageUrl) || (context.mediaByClipId as any)?.get(clip.id);
         if (imageSource) {
           const iw = 'width' in imageSource ? Number(imageSource.width) : 0;
           const ih = 'height' in imageSource ? Number(imageSource.height) : 0;
@@ -113,6 +123,7 @@ export class CanvasExportRenderer {
         ctx.textBaseline = 'middle';
         ctx.fillText(clip.properties.name || 'Media Clip', 0, 0);
       }
+      ctx.restore();
       ctx.restore();
     });
 

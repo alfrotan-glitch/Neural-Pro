@@ -1,69 +1,47 @@
 /**
- * REPRODUCTION: webcodecs-export.ts back-pressure helper leaks `ondequeue` handlers.
+ * REPRODUCTION / REGRESSION TEST: webcodecs-export.ts back-pressure helper leaks `ondequeue` handlers.
  *
- *   while (videoEncoder.encodeQueueSize > 4) {
- *     await new Promise((resolve) => {
- *       const previous = videoEncoder.ondequeue;
- *       const timer = setTimeout(resolve, 100);
- *       videoEncoder.ondequeue = () => { clearTimeout(timer); videoEncoder.ondequeue = previous; resolve(); };
- *     });
- *   }
- *
- * When the 100ms TIMEOUT wins the race (the common case on a busy encoder), the
- * custom handler is never removed and never restores `previous`. It stays attached
- * and captures a resolved promise + timer in a closure forever.
+ * Verifies that waitForEncoderQueue cleans up timeout and event listeners deterministically
+ * without accumulating closures or leaking memory when an encoder is stalled.
  */
 class FakeEncoder {
-  constructor() { this.encodeQueueSize = 99; this.ondequeue = null; }   // permanently backed up
+  constructor() {
+    this.encodeQueueSize = 5; // backed up
+    this.ondequeue = null;
+  }
 }
 
-const encoder = new FakeEncoder();
-// Simulate "no dequeue event ever fires" by never invoking encoder.ondequeue.
-const origSetTimeout = global.setTimeout;
-global.setTimeout = (fn, ms) => origSetTimeout(fn, 0);   // make the 100ms timer win immediately
-
 (async () => {
+  const { waitForEncoderQueue } = await import('../src/lib/webcodecs-export.js');
+  const encoder = new FakeEncoder();
+  const origSetTimeout = global.setTimeout;
+  global.setTimeout = (fn, ms) => origSetTimeout(fn, 0);
+
+  const captured = [];
   for (let i = 0; i < 200; i += 1) {
-    while (encoder.encodeQueueSize > 4) {
-      await new Promise((resolve) => {
-        const previous = encoder.ondequeue;
-        const timer = setTimeout(resolve, 100);
-        encoder.ondequeue = () => { clearTimeout(timer); encoder.ondequeue = previous; resolve(); };
-      });
-      break; // one back-pressure wait per simulated frame
-    }
+    encoder.encodeQueueSize = 5;
+    const waitPromise = waitForEncoderQueue(encoder, 4);
+    // After one timeout tick, simulate queue drain
+    await new Promise((r) => origSetTimeout(() => {
+      encoder.encodeQueueSize = 4;
+      r();
+    }, 1));
+    await waitPromise;
+    captured.push(encoder.ondequeue);
   }
   global.setTimeout = origSetTimeout;
 
-  // Count how many handlers are chained onto the encoder after 200 frames.
-  let depth = 0;
-  let cursor = encoder.ondequeue;
-  while (typeof cursor === 'function') {
-    depth += 1;
-    const prev = cursor.prev;
-    // The handler closes over `previous`; call it in a sandbox to observe the chain.
-    break;
-  }
-
-  // Directly measure: invoke the handler chain and count how many fire.
-  let fired = 0;
-  const walk = (fn) => { if (typeof fn !== 'function') return; fired += 1; };
-  // Re-run capturing the chain explicitly so we can count it.
-  const e2 = new FakeEncoder();
-  const captured = [];
-  for (let i = 0; i < 200; i += 1) {
-    const previous = e2.ondequeue;
-    const timer = origSetTimeout(() => {}, 1);
-    e2.ondequeue = () => { origSetTimeout && clearTimeout(timer); e2.ondequeue = previous; };
-    captured.push(previous);
-    clearTimeout(timer);
-  }
+  const attached = encoder.ondequeue !== null;
   const chained = captured.filter((p) => typeof p === 'function').length;
 
   console.log(`After 200 simulated frames with a stalled encoder:`);
-  console.log(`  ondequeue handlers still attached to the encoder : 1 (the newest)`);
+  console.log(`  ondequeue handlers still attached to the encoder : ${attached ? 1 : 0}`);
   console.log(`  handlers captured in the previous closure chain   : ${chained}`);
-  console.log(`  => every one of them retains a settled Promise resolve() + a Timer => LEAK`);
-  console.log(chained > 0 ? '\nRESULT: DEFECT REPRODUCED' : '\nRESULT: no defect');
-  process.exit(chained > 0 ? 1 : 0);
+
+  if (chained > 0 || attached) {
+    console.log('\nRESULT: DEFECT REPRODUCED');
+    process.exit(1);
+  }
+  console.log('\nRESULT: no defect');
+  process.exit(0);
 })();

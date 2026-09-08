@@ -1,11 +1,5 @@
-/**
- * Canonical geometry for media inside the Video Studio composition frame.
- *
- * Preview and export must use the same media frame so WYSIWYG composition
- * does not change when the user exports the project.
- */
 export const MEDIA_FRAME_SIZE_PERCENT = 85;
-export const MEDIA_FRAME_SIZE_FRACTION = MEDIA_FRAME_SIZE_PERCENT / 100;
+export const MEDIA_FRAME_CORNER_RADIUS = 8;
 
 export interface MediaFrameGeometry {
   width: number;
@@ -14,14 +8,12 @@ export interface MediaFrameGeometry {
   y: number;
 }
 
+/**
+ * Single source of truth for media frame composition geometry.
+ */
 export function getMediaFrameGeometry(canvasWidth: number, canvasHeight: number): MediaFrameGeometry {
-  if (!Number.isFinite(canvasWidth) || !Number.isFinite(canvasHeight) || canvasWidth < 0 || canvasHeight < 0) {
-    return { width: 0, height: 0, x: 0, y: 0 };
-  }
-
-  const width = canvasWidth * MEDIA_FRAME_SIZE_FRACTION;
-  const height = canvasHeight * MEDIA_FRAME_SIZE_FRACTION;
-
+  const width = (canvasWidth * MEDIA_FRAME_SIZE_PERCENT) / 100;
+  const height = (canvasHeight * MEDIA_FRAME_SIZE_PERCENT) / 100;
   return {
     width,
     height,

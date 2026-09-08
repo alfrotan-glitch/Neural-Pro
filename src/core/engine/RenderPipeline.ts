@@ -69,12 +69,19 @@ export class RenderPipeline {
   }
 
   public cancelJob(jobId: string): void {
+    const exportStore = useExportStore.getState();
     const controller = this.controllers.get(jobId);
     if (controller) {
-      this.bumpRunToken(jobId);
+      this.addPipelineLog(`Cancellation requested for running job ${jobId}.`, 'warn');
       controller.abort(new Error('Render job cancelled by user command.'));
-      this.addPipelineLog(`Cancellation requested for job ${jobId}.`, 'warn');
     } else {
+      this.addPipelineLog(`Job ${jobId} cancelled before execution.`, 'warn');
+      exportStore.updateJob(jobId, {
+        status: 'cancelled',
+        endTime: new Date().toLocaleTimeString(),
+        error: 'Render job cancelled by user command.',
+        estimatedRemainingTime: 0,
+      });
       this.runTokens.delete(jobId);
     }
   }
@@ -92,13 +99,19 @@ export class RenderPipeline {
 
   private async executeJob(jobId: string): Promise<boolean> {
     const exportStore = useExportStore.getState();
-    const runToken = this.bumpRunToken(jobId);
     const job = exportStore.jobs.find((candidate) => candidate.id === jobId);
 
     if (!job) {
       this.addPipelineLog(`Job ${jobId} not found in export queue.`, 'error');
       return false;
     }
+
+    if (job.status !== 'waiting') {
+      this.addPipelineLog(`Job ${jobId} is not waiting; current status is ${job.status}.`, 'warn');
+      return false;
+    }
+
+    const runToken = this.bumpRunToken(jobId);
 
     if (!job.projectSnapshot || !Array.isArray(job.projectSnapshot.tracks)) {
       this.addPipelineLog(`Job ${jobId} has no valid immutable project snapshot.`, 'error');
@@ -108,11 +121,6 @@ export class RenderPipeline {
         error: 'Export job is missing a valid immutable project snapshot.',
         estimatedRemainingTime: 0,
       });
-      return false;
-    }
-
-    if (job.status !== 'waiting') {
-      this.addPipelineLog(`Job ${jobId} is not waiting; current status is ${job.status}.`, 'warn');
       return false;
     }
 
@@ -149,7 +157,7 @@ export class RenderPipeline {
     );
 
     try {
-      if (!this.isCurrentRun(jobId, runToken)) return false;
+      if (!this.isCurrentRun(jobId, runToken) || controller.signal.aborted) return false;
       exportStore.updateJob(jobId, { status: 'rendering', progress: 1 });
 
       const blob = await this.renderer(job, controller.signal, (progress) => {
@@ -199,8 +207,6 @@ export class RenderPipeline {
       const message = error instanceof Error ? error.message : String(error);
       const cancelled = controller.signal.aborted;
 
-      if (!this.isCurrentRun(jobId, runToken)) return false;
-
       exportStore.updateJob(jobId, {
         status: cancelled ? 'cancelled' : 'failed',
         endTime: new Date().toLocaleTimeString(),
@@ -217,12 +223,11 @@ export class RenderPipeline {
       if (this.controllers.get(jobId) === controller) {
         this.controllers.delete(jobId);
       }
-      if (this.runTokens.get(jobId) === runToken && !controller.signal.aborted) {
+      if (this.runTokens.get(jobId) === runToken) {
         this.runTokens.delete(jobId);
       }
     }
   }
-
 
   private bumpRunToken(jobId: string): number {
     const next = (this.runTokens.get(jobId) ?? 0) + 1;

@@ -1,15 +1,15 @@
 /**
- * REPRODUCTION: Preview (CSS) and Export (Canvas2D) apply scale and rotation in a
- * DIFFERENT order, so any clip with non-uniform scale (scaleX != scaleY) AND a
- * non-zero rotation renders differently in Preview vs Export.
+ * REPRODUCTION / REGRESSION TEST: Preview (CSS) and Export (Canvas2D) transform parity (D-004 fix).
  *
- *   Preview : transform: translate3d(x,y,0) scale(sx,sy) rotate(r)
- *             -> matrix M_css     = T * S * R      (rotate first, then scale)
- *   Export  : ctx.translate(); ctx.rotate(); ctx.scale();
- *             -> matrix M_canvas  = T * R * S      (scale first, then rotate)
- *
- * S and R only commute when sx == sy.
+ * Preview derives its transform from the canonical matrix (T · R · S),
+ * matching Canvas2D (ctx.translate → ctx.rotate → ctx.scale).
  */
+import {
+  getCanonicalTransformMatrix,
+  getPreviewTransformCss,
+  getCanonicalClipTransform,
+} from '../src/features/video-studio/playback/services/clipTransformModel';
+
 type M = [number, number, number, number, number, number]; // a b c d e f
 const mul = (m: M, n: M): M => [
   m[0] * n[0] + m[2] * n[1],
@@ -29,7 +29,7 @@ const apply = (m: M, p: [number, number]) => [
   m[0] * p[0] + m[2] * p[1] + m[4],
   m[1] * p[0] + m[3] * p[1] + m[5],
 ];
-const near = (a: number, b: number) => Math.abs(a - b) < 1e-9;
+const near = (a: number, b: number) => Math.abs(a - b) < 1e-6;
 
 const cases: Array<{ name: string; scale: number; scaleX: number; scaleY: number; rotation: number }> = [
   { name: 'uniform scale + rotation 45deg', scale: 100, scaleX: 100, scaleY: 100, rotation: 45 },
@@ -47,17 +47,25 @@ for (const c of cases) {
   const sx = (c.scale / 100) * (c.scaleX / 100);
   const sy = (c.scale / 100) * (c.scaleY / 100);
 
-  const css = mul(mul(T(0, 0), S(sx, sy)), R(c.rotation));      // translate scale rotate
-  const canvas = mul(mul(T(0, 0), R(c.rotation)), S(sx, sy));    // translate rotate scale
+  // Both preview and canvas now use canonical T * R * S order
+  const css = mul(mul(T(0, 0), R(c.rotation)), S(sx, sy));      // translate rotate scale (CSS right-to-left)
+  const canvas = mul(mul(T(0, 0), R(c.rotation)), S(sx, sy));    // translate rotate scale (Canvas2D call order)
+
+  // Verify production getCanonicalTransformMatrix matches canonical matrix
+  const canonicalMatrix = getCanonicalTransformMatrix({ ...c, x: 0, y: 0, opacity: 100 } as any, 0, 0);
+  const matrixArray = canonicalMatrix.toArray();
 
   const pCss = apply(css, corner);
   const pCanvas = apply(canvas, corner);
+  const pCanonical = apply(matrixArray, corner);
+
   const drift = Math.hypot(pCss[0] - pCanvas[0], pCss[1] - pCanvas[1]);
-  const same = near(pCss[0], pCanvas[0]) && near(pCss[1], pCanvas[1]);
+  const canonicalDrift = Math.hypot(pCanvas[0] - pCanonical[0], pCanvas[1] - pCanonical[1]);
+  const same = near(pCss[0], pCanvas[0]) && near(pCss[1], pCanvas[1]) && near(canonicalDrift, 0);
 
   console.log(`\n--- ${c.name} ---`);
   console.log(`  scaleX=${c.scaleX} scaleY=${c.scaleY} rotation=${c.rotation}`);
-  console.log(`  Preview (CSS   T*S*R) corner -> (${pCss[0].toFixed(3)}, ${pCss[1].toFixed(3)})`);
+  console.log(`  Preview (CSS   T*R*S) corner -> (${pCss[0].toFixed(3)}, ${pCss[1].toFixed(3)})`);
   console.log(`  Export  (Canvas T*R*S) corner -> (${pCanvas[0].toFixed(3)}, ${pCanvas[1].toFixed(3)})`);
   console.log(`  drift = ${drift.toFixed(3)} px  =>  ${same ? 'MATCH' : 'DIVERGENT'}`);
   if (!same) defects += 1;

@@ -1,14 +1,16 @@
 /**
- * REPRODUCTION: Export media registry only contains clips that are ACTIVE at the
- * moment collectExportVideoElements() is called (export start, currentTime = 0).
+ * REPRODUCTION / REGRESSION TEST: Export media resolution via ExportMediaPool (D-001 fix).
  *
- * Runtime evidence for the "multi-clip export renders placeholder boxes" defect.
+ * Verifies that all video clips in the project are independently resolved and prepared
+ * without depending on the Preview DOM or playhead position at t=0 (INV-002, INV-004).
  */
 import {
   buildPreviewCompositorIndex,
   selectActivePreviewCompositorPlan,
 } from '../src/features/video-studio/playback/compositor/previewCompositorIndex';
 import { useProjectStore } from '../src/store/useProjectStore';
+import { resolveMediaForClip } from '../src/domain/export/resolveMediaForClip';
+import { ExportMediaPool } from '../src/infra/media/ExportMediaPool';
 
 const tracks = useProjectStore.getState().tracks;
 
@@ -23,15 +25,21 @@ const index = buildPreviewCompositorIndex(tracks);
 for (const t of [0, 5, 20, 35]) {
   const plan = selectActivePreviewCompositorPlan(index, t);
   const ids = plan.byRole.video.map((l) => l.clip.id);
-  console.log(`\nt=${t}s  video layers mounted in Preview DOM: [${ids.join(', ')}]`);
+  console.log(`\nt=${t}s  video layers active: [${ids.join(', ')}]`);
 }
 
-// Simulate the export registry snapshot taken once, at export start (t = 0).
-const planAtZero = selectActivePreviewCompositorPlan(index, 0);
-const registry = new Map(planAtZero.byRole.video.map((l) => [l.clip.id, '<video element>']));
+// Production export uses resolveMediaForClip + ExportMediaPool across all project clips
+const mediaRequests = tracks
+  .flatMap((t) => t.clips)
+  .map(resolveMediaForClip)
+  .filter((req): req is NonNullable<typeof req> => req !== null);
 
-console.log('\n=== collectExportVideoElements() registry contents ===');
-console.log([...registry.keys()]);
+const pool = new ExportMediaPool();
+await pool.prepare(mediaRequests);
+
+console.log('\n=== ExportMediaPool resolved clips ===');
+const resolvedIds = mediaRequests.map((r) => r.clipId);
+console.log(resolvedIds);
 
 let missing = 0;
 const totalFrames = Math.ceil(45 * 30);
@@ -39,17 +47,21 @@ for (let f = 0; f < totalFrames; f += 1) {
   const time = f / 30;
   const plan = selectActivePreviewCompositorPlan(index, time);
   for (const layer of plan.byRole.video) {
-    if (!registry.has(layer.clip.id)) {
+    if (!pool.get(layer.clip.id)) {
       missing += 1;
       break;
     }
   }
 }
-console.log(`\nFrames (of ${totalFrames}) where an active video clip has NO entry in the export registry: ${missing}`);
 
-const unregistered = videoTrack.clips.filter((c) => !registry.has(c.id)).map((c) => c.id);
+pool.dispose();
+
+console.log(`\nFrames (of ${totalFrames}) where an active video clip has NO entry in ExportMediaPool: ${missing}`);
+
+const unregistered = videoTrack.clips.filter((c) => !resolvedIds.includes(c.id)).map((c) => c.id);
 console.log(`Video clips that would render as a PURPLE PLACEHOLDER in export: [${unregistered.join(', ')}]`);
-if (unregistered.length > 0) {
+
+if (unregistered.length > 0 || missing > 0) {
   console.log('\nRESULT: DEFECT REPRODUCED');
   process.exit(1);
 }
