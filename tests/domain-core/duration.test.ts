@@ -6,9 +6,11 @@ import {
   clampProjectTime,
   getClipSourceRange,
   getClipTimelineEnd,
+  getEffectiveClipDuration,
+  getMediaIntrinsicDuration,
   getPlaybackRate,
-  getSourceDuration,
   getTimelineDuration,
+  getTrimDuration,
   isClipActiveAt,
   projectFrameCount,
   projectTimeToSourceTime,
@@ -41,31 +43,36 @@ export default suite('duration — one authority for clip and project duration',
   equal(getClipSourceRange(clip({ duration: 1, trim: null })).start, 0, 'a missing trim starts at 0');
   equal(getClipSourceRange(clip({ duration: 1, trim: null })).end, null, 'a missing trim has no out-point');
 
-  // ---- source duration ---------------------------------------------------
-  equal(getSourceDuration(clip({ duration: 1, properties: { imageUrl: 'blob:x' } })), null, 'images are unbounded');
-  equal(getSourceDuration(clip({ duration: 1, properties: { textContent: 'hi' } })), null, 'text is unbounded');
-  // Documented quirk Q1, branch 1: persisted duration means "media remaining after the in-point".
+  // ---- F-3 semantic separation -------------------------------------------
+  // (1) media intrinsic duration = the ASSET's duration. Never a clip bound.
+  equal(getMediaIntrinsicDuration(clip({ duration: 1, properties: { sourceMediaDuration: 12 } })), 12, 'intrinsic duration is the asset duration');
+  equal(getMediaIntrinsicDuration(clip({ duration: 1, properties: { mediaDuration: 12 } })), 12, 'mediaDuration is an accepted alias');
+  equal(getMediaIntrinsicDuration(clip({ duration: 1, properties: { sourceDuration: 12 } })), 12, 'sourceDuration is an accepted alias');
   equal(
-    getSourceDuration(clip({ duration: 1, trim: { in: 2, out: 99 }, properties: { sourceMediaDuration: 10 } })),
-    8,
-    'persisted duration is measured from trim.in (quirk Q1, pinned by characterization)',
+    getMediaIntrinsicDuration(clip({ duration: 1, trim: { in: 5, out: 9 }, properties: { sourceMediaDuration: 12 } })),
+    12,
+    'F-3: trimming does NOT reduce the intrinsic duration',
   );
-  // Documented quirk Q1, branch 2: without a persisted duration it is the trim window.
+  equal(getMediaIntrinsicDuration(clip({ duration: 1 })), null, 'an unknown asset duration is null, not 0');
+  equal(getMediaIntrinsicDuration(clip({ duration: 1, properties: { sourceMediaDuration: 0 } })), null, 'a zero persisted duration is treated as unknown');
+
+  // (2) trim duration = trim.out - trim.in — THE canonical clip source duration.
+  equal(getTrimDuration(clip({ duration: 1, trim: { in: 2, out: 5 } })), 3, 'trim duration is out - in');
+  equal(getTrimDuration(clip({ duration: 1, trim: { in: 2, out: 2 } })), null, 'an empty trim window is null');
+  equal(getTrimDuration(clip({ duration: 1, trim: { in: 5, out: 2 } })), null, 'an inverted trim window is null, never negative');
+  equal(getTrimDuration(clip({ duration: 1, trim: null })), null, 'a missing trim means unbounded');
+
+  // (3) effective clip duration = trim duration / playback rate.
+  equal(getEffectiveClipDuration(clip({ duration: 1, trim: { in: 0, out: 4 } })), 4, 'at 1x the effective duration equals the trim duration');
+  equal(getEffectiveClipDuration(clip({ duration: 1, trim: { in: 0, out: 4 }, properties: { speed: 2 } })), 2, 'at 2x the clip occupies half as much timeline time');
+  equal(getEffectiveClipDuration(clip({ duration: 1, trim: { in: 0, out: 4 }, properties: { speed: 0.5 } })), 8, 'at 0.5x the clip occupies twice as much timeline time');
+  equal(getEffectiveClipDuration(clip({ duration: 1, trim: null })), null, 'an unbounded clip has no effective duration');
+
+  // The decision in one assertion: persisted metadata no longer shortens the clip.
   equal(
-    getSourceDuration(clip({ duration: 1, trim: { in: 2, out: 5 }, properties: { videoUrl: 'https://x/y.mp4' } })),
-    3,
-    'without persisted metadata the source duration is the trim window (quirk Q1, pinned)',
-  );
-  equal(
-    getSourceDuration(clip({ duration: 1, properties: { audioUrl: 'https://x/y.mp3' } })),
-    null,
-    'a media clip with no trim bound is unbounded',
-  );
-  equal(getSourceDuration(clip({ duration: 1 })), null, 'a clip with no media and no metadata is unbounded');
-  equal(
-    getSourceDuration(clip({ duration: 1, trim: { in: 3, out: 1 }, properties: { sourceMediaDuration: 2 } })),
-    null,
-    'a persisted duration not beyond the in-point yields null, never a negative',
+    getTimelineDuration(clip({ duration: 20, trim: { in: 2, out: 9 }, properties: { sourceMediaDuration: 12 } })),
+    7,
+    'F-3: the source bound is the trim window (7), not persisted - trim.in (10)',
   );
 
   // ---- timeline duration -------------------------------------------------
@@ -84,7 +91,18 @@ export default suite('duration — one authority for clip and project duration',
     2,
     'a declared duration shorter than the source wins',
   );
+  // (4) timeline duration = min(declared, effective).
   equal(getTimelineDuration(clip({ duration: 7, properties: { imageUrl: 'blob:x' } })), 7, 'an unbounded clip uses its declared duration');
+  equal(
+    getTimelineDuration(clip({ duration: 7, trim: { in: 0, out: 3 }, properties: { imageUrl: 'blob:x' } })),
+    3,
+    'F-3 adoption note: an unbounded-media clip WITH a trim window is now bounded by it (WP-11 verifies before switching)',
+  );
+  equal(
+    getTimelineDuration(clip({ duration: 2, trim: { in: 0, out: 9 } })),
+    2,
+    'the declared duration is the editor\'s authoritative shortening',
+  );
   equal(getTimelineDuration(clip({ duration: Number.NaN } as ClipDurationInput)), 0, 'a non-finite declared duration yields 0');
 
   // ---- project duration (INV-001) ----------------------------------------

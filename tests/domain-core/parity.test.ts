@@ -17,8 +17,8 @@ import {
   clampProjectTime,
   calculateProjectDuration,
   getPlaybackRate,
-  getSourceDuration,
   getTimelineDuration,
+  getTrimDuration,
   projectTimeToSourceTime,
   sourceTimeToProjectTime,
   getClipSourceRange,
@@ -103,18 +103,14 @@ export default suite('parity — kernel vs the modules that execute today', () =
   for (const [index, clip] of CLIPS.entries()) {
     equal(getPlaybackRate(clip), getCanonicalClipPlaybackRate(clip), `rate parity #${index}`);
     equal(getPlaybackRate(clip), getClipPlaybackRate(clip as never), `rate parity vs mediaTimeMapper #${index}`);
-    equal(getSourceDuration(clip), getCanonicalClipSourceDuration(clip), `source duration parity #${index}`);
     equal(getTimelineDuration(clip), getCanonicalClipTimelineDuration(clip), `timeline duration parity #${index}`);
 
     const range = getClipSourceRange(clip);
     const legacyRange = legacySourceRange(clip as never);
     equal(range.start, legacyRange.start, `source range start parity #${index}`);
     equal(range.end, legacyRange.end, `source range end parity #${index}`);
-    equal(
-      range.end === null ? null : Math.max(0, range.end - range.start),
-      legacySourceDurationFromRange(clip as never),
-      `source duration from range parity #${index}`,
-    );
+    // The trim-window branch of the legacy authority is exactly getTrimDuration.
+    equal(getTrimDuration(clip), legacySourceDurationFromRange(clip as never), `trim duration parity #${index}`);
   }
 
   // ---- time mapping ------------------------------------------------------
@@ -216,6 +212,43 @@ export default suite('parity — kernel vs the modules that execute today', () =
   check(
     Number.isFinite(sourceTimeToProjectTime(nanClip, Number.NaN)),
     'F-1 pinned: the kernel returns a finite project time for a non-finite source time',
+  );
+
+  // F-3 — canonical source duration is the TRIM WINDOW (owner decision 2026-09-09).
+  // The legacy authority answers a different question whenever persisted media
+  // metadata exists: it returns `persisted − trim.in` ("media remaining after
+  // the in-point") instead of the trim window. The kernel's answer is the trim
+  // window; the persisted value now has its own name and meaning
+  // (`getMediaIntrinsicDuration` = the asset's duration).
+  //
+  // Pinned with a clip whose declared duration is long enough to expose the
+  // difference, so the divergence cannot be hidden by a min() that happens to
+  // pick the same number.
+  const persistedClip: ClipDurationInput = {
+    startAt: 0,
+    duration: 20,
+    trim: { in: 2, out: 9 },
+    properties: { sourceMediaDuration: 12 },
+  };
+  equal(
+    getCanonicalClipSourceDuration(persistedClip),
+    10,
+    'F-3 pinned: the legacy authority returns persisted - trim.in (12 - 2)',
+  );
+  equal(
+    getTrimDuration(persistedClip),
+    7,
+    'F-3 pinned: the canonical source duration is the trim window (9 - 2)',
+  );
+  equal(
+    getCanonicalClipTimelineDuration(persistedClip),
+    10,
+    'F-3 pinned: the legacy timeline duration inherits the persisted bound',
+  );
+  equal(
+    getTimelineDuration(persistedClip),
+    7,
+    'F-3 pinned: the canonical timeline duration inherits the trim window',
   );
 
   // F-1b — NaN duration (owner: WP-11).

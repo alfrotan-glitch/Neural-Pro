@@ -14,19 +14,36 @@ import { clampToDuration } from './time';
  * and `mediaTimeMapper.getClipPlaybackRate` are byte-identical duplicates with
  * different names. There is now exactly one.
  *
- * **Behaviour is preserved bit-for-bit.** Two semantic quirks of the executing
- * code are pinned by tests and documented rather than silently "fixed":
+ * ## Semantic separation (owner decision 2026-09-09 — F-3, ADR-017)
  *
- *  Q1  When a persisted duration exists (`sourceMediaDuration` /
- *      `mediaDuration` / `sourceDuration`), source duration is
- *      `persisted - trim.in` — i.e. "media remaining after the in-point".
- *      When it does not exist, source duration is `trim.out - trim.in` — i.e.
- *      "the trim window". The two branches answer different questions.
- *      Reconciling them is WP-11's decision (INV-011), not this kernel's.
+ * Four different quantities used to share one name. They are now distinct, and
+ * each has exactly one function:
  *
- *  Q2  `getCanonicalClipSourceDuration` returns `null` (unbounded) for images
- *      and text, which is why `timelineDuration` falls back to the declared
- *      duration for those kinds.
+ * | Concept                  | Definition                              | Function                        |
+ * |--------------------------|-----------------------------------------|---------------------------------|
+ * | media intrinsic duration | duration of the **source asset**        | `getMediaIntrinsicDuration`     |
+ * | trim duration            | `trim.out − trim.in`                    | `getTrimDuration`               |
+ * | effective clip duration  | trim duration ÷ playback rate           | `getEffectiveClipDuration`      |
+ * | timeline duration        | `min(declared, effective)`              | `getTimelineDuration`           |
+ *
+ * **Canonical clip source duration is the TRIM WINDOW.**
+ *
+ * Before this decision the executing authority answered two different questions
+ * behind one name (`getCanonicalClipSourceDuration`): `persisted − trim.in`
+ * when persisted media metadata existed ("media remaining after the in-point"),
+ * and `trim.out − trim.in` otherwise. The trim window is now the only answer to
+ * "how much source media may this clip consume"; the persisted value keeps a
+ * separate, defined meaning — the asset's intrinsic duration.
+ *
+ * The declared `duration` remains the editor's authoritative shortening, so the
+ * timeline duration is `min(declared, effective)`, not `effective` alone.
+ *
+ * **Adoption note (WP-11 owns the integration).** Under this definition a clip
+ * whose media is unbounded (image, text, generated audio) is no longer
+ * unconditionally unbounded: if it carries a trim window, that window now
+ * bounds it. The executing `clipTimelineDuration.ts` still short-circuits
+ * `imageUrl` / `textContent` to `null`. Verify against real projects before
+ * switching call sites over — see `tests/domain-core/parity.test.ts` (F-3).
  */
 
 export const DEFAULT_PLAYBACK_RATE = 1;
@@ -97,43 +114,49 @@ export function getClipSourceRange(clip: ClipDurationInput): ClipSourceRange {
   return { start, end };
 }
 
-/** Source duration derived from the trim window only (`Q1` branch 2). */
-export function getClipSourceDuration(clip: ClipDurationInput): Seconds | null {
+/**
+ * **Media intrinsic duration** — the duration of the source ASSET, in seconds.
+ *
+ * This is a *cache* of what `AssetRegistry.measure()` returns (ADR-010, WP-05),
+ * persisted on the clip so an export snapshot or a cold reload can still
+ * validate a trim window when the live media handle is unavailable.
+ *
+ * It is **not** a limit on how long a clip may be. `null` means the asset
+ * duration is not currently known.
+ */
+export function getMediaIntrinsicDuration(clip: ClipDurationInput): Seconds | null {
+  const persisted = ['sourceMediaDuration', 'mediaDuration', 'sourceDuration']
+    .map((key) => propertyNumber(clip.properties, key))
+    .find((value) => Number.isFinite(value) && value > 0);
+  return persisted === undefined ? null : persisted;
+}
+
+/**
+ * **Trim duration** — `trim.out − trim.in`.
+ *
+ * THE canonical clip source duration (F-3 decision, 2026-09-09).
+ *
+ * `null` means the clip exposes no valid trim window, and is therefore
+ * unbounded: images, text, generated audio, and any clip whose trim is missing
+ * or inverted.
+ */
+export function getTrimDuration(clip: ClipDurationInput): Seconds | null {
   const { start, end } = getClipSourceRange(clip);
   return end === null ? null : Math.max(0, end - start);
 }
 
 /**
- * Canonical source duration: how much source media this clip may consume.
+ * **Effective clip duration** — the trim duration adjusted by the playback rate.
  *
- * `null` means **unbounded** (images, text, and any clip whose media is not
- * currently resolvable) — in that case the declared timeline duration wins.
+ * A rate of 2 consumes source media twice as fast, so the clip occupies half as
+ * much timeline time: `trimDuration / rate`.
+ *
+ * `null` means unbounded — the declared duration is the only bound.
  */
-export function getSourceDuration(clip: ClipDurationInput): Seconds | null {
-  const properties = clip.properties;
-
-  // Static visual assets have no finite source-media duration limit.
-  if (properties?.['imageUrl']) return null;
-  if (properties?.['textContent'] !== undefined) return null;
-
-  // Persisted media metadata remains authoritative across a cold reload or an
-  // export snapshot, where the live media handle is unavailable.
-  const persisted = ['sourceMediaDuration', 'mediaDuration', 'sourceDuration']
-    .map((key) => propertyNumber(properties, key))
-    .find((value) => Number.isFinite(value) && value > 0);
-
-  if (persisted !== undefined) {
-    const start = trimIn(clip);
-    return persisted > start ? persisted - start : null;
-  }
-
-  const hasVideo = typeof properties?.['videoUrl'] === 'string' && properties['videoUrl'].trim().length > 0;
-  const hasAudio = typeof properties?.['audioUrl'] === 'string' && properties['audioUrl'].trim().length > 0;
-  if (!hasVideo && !hasAudio) return null;
-
-  const { start, end } = getClipSourceRange(clip);
-  if (end === null) return null;
-  return Math.max(0, end - start);
+export function getEffectiveClipDuration(clip: ClipDurationInput): Seconds | null {
+  const trimDuration = getTrimDuration(clip);
+  if (trimDuration === null) return null;
+  return trimDuration / getPlaybackRate(clip);
 }
 
 // ---------------------------------------------------------------------------
@@ -141,16 +164,18 @@ export function getSourceDuration(clip: ClipDurationInput): Seconds | null {
 // ---------------------------------------------------------------------------
 
 /**
- * The timeline duration a clip actually occupies.
+ * **Timeline duration** — what the clip actually occupies on the timeline.
  *
- * `min(declaredDuration, sourceDuration / rate)`, and `declaredDuration` when
- * the source is unbounded. Never negative.
+ * `min(declared, effectiveClipDuration)`, and `declared` when the clip is
+ * unbounded. The declared duration is the editor's authoritative shortening;
+ * the effective duration is the hard upper bound imposed by the trim window
+ * and the playback rate. Never negative.
  */
 export function getTimelineDuration(clip: ClipDurationInput): Seconds {
   const declared = Math.max(0, Number.isFinite(clip.duration) ? clip.duration : 0);
-  const sourceDuration = getSourceDuration(clip);
-  if (sourceDuration === null) return declared;
-  return Math.min(declared, sourceDuration / getPlaybackRate(clip));
+  const effective = getEffectiveClipDuration(clip);
+  if (effective === null) return declared;
+  return Math.min(declared, effective);
 }
 
 /** The half-open timeline interval a clip occupies: `[startAt, startAt + timelineDuration)`. */
