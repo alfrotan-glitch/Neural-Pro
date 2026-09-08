@@ -1,12 +1,32 @@
+const audioBufferCache = new Map<string, Promise<AudioBuffer>>();
+
 export async function loadAudioBuffer(
   url: string,
   offlineCtx: OfflineAudioContext,
 ): Promise<AudioBuffer> {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Audio request failed (${response.status}) for ${url}`);
+  const cached = audioBufferCache.get(url);
+  if (cached) return cached;
+
+  const promise = (async () => {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Audio request failed (${response.status}) for ${url}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    return await offlineCtx.decodeAudioData(arrayBuffer);
+  })();
+
+  audioBufferCache.set(url, promise);
+  try {
+    return await promise;
+  } catch (err) {
+    audioBufferCache.delete(url);
+    throw err;
   }
-  return offlineCtx.decodeAudioData(await response.arrayBuffer());
+}
+
+export function clearAudioBufferCache(): void {
+  audioBufferCache.clear();
 }
 
 export function audioBufferToWav(buffer: AudioBuffer): Blob {
