@@ -111,7 +111,14 @@ export function canMutateTrackContent(track: { readonly state: TrackState }): bo
   return !track.state.isLocked;
 }
 
-/** A track is audible only when it is visible, unmuted and not collapsed out of the mix. */
+/**
+ * A track contributes audio only when it is visible and unmuted.
+ *
+ * `isCollapsed` deliberately does **not** affect audibility: collapsing is a
+ * presentation gesture that hides the lane, it does not take the track out of
+ * the mix. (An earlier comment claimed otherwise; the code was right and the
+ * comment was wrong, so the comment was corrected.)
+ */
 export function isTrackAudible(track: { readonly state: TrackState }): boolean {
   return track.state.isVisible && !track.state.isMuted;
 }

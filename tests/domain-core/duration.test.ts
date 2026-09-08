@@ -1,10 +1,12 @@
 import { check, close, equal, suite, throws } from './harness';
 import {
+  DEFAULT_PLAYBACK_RATE,
   MAX_PLAYBACK_RATE,
   MIN_PLAYBACK_RATE,
   calculateProjectDuration,
   clampProjectTime,
   getClipSourceRange,
+  getClipTimelineInterval,
   getClipTimelineEnd,
   getEffectiveClipDuration,
   getMediaIntrinsicDuration,
@@ -164,4 +166,11 @@ export default suite('duration — one authority for clip and project duration',
   equal(projectFrameCount(1, 0), 30, 'an invalid fps falls back to the default, never to a division by zero');
   equal(projectFrameCount(1, 10_000), 240, 'frame counts use the single fps authority, so an absurd fps is clamped');
   equal(projectFrameCount(1, 30), framesForDuration(1, 30), 'projectFrameCount delegates to the one frame-count rule');
+  equal(DEFAULT_PLAYBACK_RATE, 1, 'the default playback rate is 1x');
+
+  const intervalClip = { startAt: 3, duration: 10, trim: { in: 0, out: 4 }, properties: { videoUrl: 'https://x/y.mp4' } } as ClipDurationInput & { startAt: number };
+  equal(getClipTimelineInterval(intervalClip).start, 3, 'the timeline interval starts at startAt');
+  equal(getClipTimelineInterval(intervalClip).end, 7, 'the timeline interval ends at startAt + effective duration');
+  equal(getClipTimelineInterval({ ...intervalClip, startAt: Number.NaN } as ClipDurationInput & { startAt: number }).start, 0,
+    'a non-finite startAt normalises to 0 rather than poisoning the interval');
 });

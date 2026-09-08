@@ -1,6 +1,8 @@
 import { check, close, deepEqual, equal, suite, throws } from './harness';
 import {
   IDENTITY_TRANSFORM,
+  OPACITY_MAX,
+  OPACITY_MIN,
   assertTransform,
   canonicalTransform,
   transformMatrix,

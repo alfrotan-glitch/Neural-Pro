@@ -38,7 +38,10 @@ src/domain/
 4. **Total normalisers.** `normalizeClip`, `normalizeProject`, `canonicalTransform` and
    `normalizeFps` never throw and never emit a non-finite value. Validation that must fail
    loudly uses the `assert*` predicates and throws `DomainInvariantError`.
-5. **Tests are executable**, not grep: `npx tsx tests/domain-core/run.ts`.
+5. **Every exported value has a test.** `tests/domain-core/coverage.test.ts` fails the suite
+   if a new exported function/constant is not referenced by a test. Type-only exports are
+   excluded; `AssetId` is an intentional forward declaration for WP-05.
+6. **Tests are executable**, not grep: `npx tsx tests/domain-core/run.ts`.
    Exit `0` + `CANONICAL_CORE=PASS`; exit `1` + a `[FAIL] <suite>` line per failure.
    Deterministic, cwd-independent, no network/browser/env. CI registration facts:
    `docs/architecture/canonical-core.md` §7.

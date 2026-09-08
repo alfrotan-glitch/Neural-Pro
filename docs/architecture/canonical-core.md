@@ -112,11 +112,12 @@ questions depending on whether persisted metadata existed — is removed rather 
 
 | Class | Command | Result |
 |---|---|---|
-| executable | `npx tsx tests/domain-core/run.ts` | `CANONICAL_CORE=PASS` (10 suites) |
+| executable | `npx tsx tests/domain-core/run.ts` | `CANONICAL_CORE=PASS` (15 suites, 93 exported values covered) |
 | executable | `npx tsx tests/domain-core/run.ts` → `parity` | the kernel agrees with every module that executes today, and every divergence (F-1, F-1b, F-3) is pinned |
 | static | `tests/domain-core/purity.test.ts` | `src/domain/**` is pure (INV-015) — platform-API purity only |
 | static | `tests/domain-core/boundaries.test.ts` | no edge leaves `src/domain/**`, and the adoption state is reported (INV-027) |
 | static | `tests/domain-core/shims.test.ts` | every SHIM marker in `src/domain/**` is registered, owned, time-boxed and not expired (ADR-013) |
+| static | `tests/domain-core/coverage.test.ts` | every exported **value** of `src/domain/core/**` is referenced by a test (INV-029) |
 | static | `npx tsc --noEmit` | exit 0 |
 | regression | `npm test` | exit 0 (`PHASE9_TEST_SUITE=PASS`) — **no production module imports the kernel yet, so no behaviour could change** |
 
@@ -124,10 +125,18 @@ Per ADR-000 the regression row is a *regression* check, not evidence of correctn
 above are the evidence.
 
 **The guard suites are proven non-vacuous.** Each was verified by an injected negative control
-(run in an isolated copy outside the repository, then discarded): an unregistered `SHIM-999`
-marker, a marker whose milestone disagrees with the register, an import that leaves
-`src/domain`, a `document.querySelector` inside the domain layer, and a shim whose removal
-milestone had shipped. All five produced `[FAIL]` and exit 1.
+(run in an isolated copy outside the repository, then discarded). All seven produced `[FAIL]`
+and exit 1:
+
+| # | Injected violation | Suite that caught it |
+|---|---|---|
+| 1 | unregistered `SHIM-999` marker | `shims` |
+| 2 | marker whose milestone disagrees with the register | `shims` |
+| 3 | import that leaves `src/domain` | `boundaries` |
+| 4 | `document.querySelector` inside the domain layer | `purity` |
+| 5 | shim whose removal milestone had shipped | `shims` |
+| 6 | exported function no test references | `coverage` |
+| 7 | `assertUsableId` regressed to a plain `Error` | `identity` |
 
 ### CI registration facts (for WP-00 / QA)
 
@@ -139,7 +148,7 @@ The suite is ready for formal registration in the CI test runner. Verified, not 
 | Success exit code | `0`, with `CANONICAL_CORE=PASS` on the last line |
 | Failure exit code | **1**, with a `[FAIL] <suite>: <message>` line per failing suite and `CANONICAL_CORE=FAIL`. Proven with an injected failing suite (negative control, run outside the repository) |
 | Machine-readable summary | `CANONICAL_CORE_SUITES=<n> PASSED=<n> FAILED=<n>` |
-| Non-vacuity | the guard suites (purity, boundaries, shims) were each proven to fail on an injected violation — see above |
+| Non-vacuity | the guard suites (purity, boundaries, shims, coverage, identity) were each proven to fail on an injected violation — see above |
 | Deterministic | two consecutive runs produced **byte-identical** output |
 | Working directory | independent — verified by running from `/tmp` with an absolute path |
 | Network / browser / env | none. No `fetch`, no browser, no `process.env`, no clock |

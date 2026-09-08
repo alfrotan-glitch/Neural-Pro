@@ -9,7 +9,6 @@
  */
 export type DomainInvariantCode =
   | 'DOMAIN_NOT_FINITE'
-  | 'DOMAIN_NOT_A_NUMBER'
   | 'DOMAIN_NOT_AN_OBJECT'
   | 'DOMAIN_NEGATIVE'
   | 'DOMAIN_NOT_POSITIVE'

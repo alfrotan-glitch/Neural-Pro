@@ -4,9 +4,11 @@ import {
   clampTime,
   clampToDuration,
   frameIndexAt,
+  isFiniteTime,
   frameToSeconds,
   framesForDuration,
   floorTimeToFrame,
+  clampToInterval,
   intervalContains,
   intervalDuration,
   intervalsOverlap,
@@ -63,4 +65,15 @@ export default suite('time — seconds are the only stored unit', () => {
 
   // Invariant: frame projection never emits a non-finite value.
   equal(frameDuration(0), 1 / 30, 'frameDuration never divides by zero');
+
+  // ---- atomic time predicates -------------------------------------------
+  check(isFiniteTime(0) && isFiniteTime(1.5), 'finite times are accepted');
+  check(!isFiniteTime(Number.NaN), 'NaN is not a time');
+  check(!isFiniteTime(Number.POSITIVE_INFINITY), 'Infinity is not a time');
+  check(!isFiniteTime('1'), 'a string is not a time');
+
+  equal(clampToInterval(first, 2.5), 2.5, 'a time inside the interval is unchanged');
+  equal(clampToInterval(first, -1), 0, 'a time before the interval clamps to its start');
+  equal(clampToInterval(first, 99), 5, 'a time after the interval clamps to its end');
+  equal(clampToInterval(first, Number.NaN), 0, 'a non-finite time clamps to the interval start');
 });

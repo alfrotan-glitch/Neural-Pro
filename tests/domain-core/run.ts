@@ -12,13 +12,18 @@ import time from './time.test';
 import duration from './duration.test';
 import transform from './transform.test';
 import geometry from './geometry.test';
+import identity from './identity.test';
+import validation from './validation.test';
 import project from './project.test';
+import clip from './clip.test';
+import track from './track.test';
 import parity from './parity.test';
 import purity from './purity.test';
 import boundaries from './boundaries.test';
 import shims from './shims.test';
+import coverage from './coverage.test';
 
-const SUITES: readonly Suite[] = [fps, time, duration, transform, geometry, project, parity, purity, boundaries, shims];
+const SUITES: readonly Suite[] = [fps, time, duration, transform, geometry, clip, track, project, identity, validation, parity, purity, boundaries, shims, coverage];
 
 const results = runSuites(SUITES);
 let failed = 0;
