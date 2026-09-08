@@ -56,6 +56,8 @@ export function assertSize(value: Size, field = 'size'): Size {
  * The canonical media frame: media is composed inside an 85 % inset of the
  * output canvas, centred.
  *
+ * SHIM-007 owner=Core-Architecture remove=WP-12 reason=legacy-authority-still-executes
+ *
  * Executing evidence: `mediaFrameGeometry` in
  * `features/video-studio/playback/services/mediaFrameGeometry.ts`, consumed by
  * both `VideoPlayer.tsx` (preview) and `CanvasExportRenderer.ts:66` (export).
@@ -66,14 +68,14 @@ export const MEDIA_FRAME_SIZE_FRACTION = MEDIA_FRAME_SIZE_PERCENT / 100;
 
 export function mediaFrameGeometry(canvas: Size): Rect {
   if (!isFiniteSize(canvas)) return { width: 0, height: 0, x: 0, y: 0 };
-  const width = canvas.width * MEDIA_FRAME_SIZE_FRACTION;
-  const height = canvas.height * MEDIA_FRAME_SIZE_FRACTION;
-  return {
-    width,
-    height,
-    x: (canvas.width - width) / 2,
-    y: (canvas.height - height) / 2,
-  };
+  // The centring arithmetic lives in `centerRect` only.
+  return centerRect(
+    { x: 0, y: 0, width: canvas.width, height: canvas.height },
+    {
+      width: canvas.width * MEDIA_FRAME_SIZE_FRACTION,
+      height: canvas.height * MEDIA_FRAME_SIZE_FRACTION,
+    },
+  );
 }
 
 /** Centre of a composition. The canonical transform pivot. */

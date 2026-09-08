@@ -1,6 +1,6 @@
 import type { Fps } from './fps';
 import type { Seconds } from './time';
-import { clampToDuration } from './time';
+import { clampToDuration, framesForDuration } from './time';
 
 /**
  * Canonical duration kernel.
@@ -265,9 +265,16 @@ export function clampProjectTime(time: unknown, duration: unknown): Seconds {
   return clampToDuration(time, duration);
 }
 
-/** Total frames of a project at `fps`. Uses the canonical frame projection. */
+/**
+ * Total frames of a project at `fps`.
+ *
+ * Delegates to `framesForDuration` — there is one frame-count rule, one epsilon
+ * and one fps fallback. (This function previously re-implemented it with its own
+ * `1e-6` literal and its own fps fallback, which is how two copies of one rule
+ * drift apart.)
+ *
+ * SHIM-007 owner=Core-Architecture remove=WP-12 reason=legacy-authority-still-executes
+ */
 export function projectFrameCount(duration: unknown, fps: Fps): number {
-  const safeDuration = Number.isFinite(duration) ? Math.max(0, Number(duration)) : 0;
-  const safeFps = Number.isFinite(fps) && fps > 0 ? fps : 30;
-  return Math.max(0, Math.ceil(safeDuration * safeFps - 1e-6));
+  return framesForDuration(duration, fps);
 }

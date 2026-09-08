@@ -50,5 +50,10 @@ src/domain/
 | SHIM-006 | `LaneRole` also declared as `TimelineTrackLaneRole` in `features/.../project/types/project.ts` | Core Architecture | WP-08 |
 | SHIM-007 | Duration/time/transform/geometry authorities still executing in `core/engine/**` and `features/**` | Core Architecture | WP-12 (each adopting WP may move earlier) |
 
-Duplicates are permitted **only** for the duration of the staging window and are listed in
-`tests/static/shim-expiry.test.ts` when that suite exists (WP-00/QA registration pending).
+Expiry for the core-owned shims is enforced **executably** by
+`tests/domain-core/shims.test.ts`: it cross-checks every `SHIM-00X owner=… remove=… reason=…`
+marker in `src/domain/**` against the ADR-013 register and fails when a removal milestone has
+shipped. ADR-013 also names `tests/static/shim-expiry.test.ts` as the global expiry suite; that
+file does not exist yet (WP-00/QA), so the core enforces its own shims in the meantime.
+
+Duplicates are permitted **only** for the duration of the staging window.

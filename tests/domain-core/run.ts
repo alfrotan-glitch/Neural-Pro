@@ -15,8 +15,10 @@ import geometry from './geometry.test';
 import project from './project.test';
 import parity from './parity.test';
 import purity from './purity.test';
+import boundaries from './boundaries.test';
+import shims from './shims.test';
 
-const SUITES: readonly Suite[] = [fps, time, duration, transform, geometry, project, parity, purity];
+const SUITES: readonly Suite[] = [fps, time, duration, transform, geometry, project, parity, purity, boundaries, shims];
 
 const results = runSuites(SUITES);
 let failed = 0;

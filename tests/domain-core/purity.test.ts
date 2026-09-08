@@ -5,6 +5,9 @@
  * INV-015: `src/domain/**` must be pure. This is one of the few places where a
  * static assertion is the *only* possible verification — purity cannot be
  * proven by running the code.
+ *
+ * Scope: **platform-API purity only.** Import direction is a separate concern
+ * and is asserted by `boundaries.test.ts`.
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -57,16 +60,6 @@ export default suite('purity — src/domain is a pure layer (INV-015, static)', 
 
     for (const rule of FORBIDDEN) {
       check(!rule.token.test(code), `${relative(ROOT, file)} must not reference ${rule.reason}`);
-    }
-
-    // Dependency direction: the domain layer imports only itself.
-    const imports = [...code.matchAll(/\bfrom\s+['"](\.[^'"]+)['"]/g)].map((m) => m[1] ?? '');
-    for (const spec of imports) {
-      const resolved = relative(ROOT, join(file, '..', spec));
-      check(
-        resolved.startsWith('src/domain/'),
-        `${relative(ROOT, file)} must import only from src/domain (found ${spec})`,
-      );
     }
   }
 });

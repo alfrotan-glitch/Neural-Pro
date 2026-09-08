@@ -77,6 +77,8 @@ function positiveScaleOr(value: unknown, fallback: number): number {
  *
  * Missing or non-finite values receive safe defaults; non-positive scales fall
  * back to `100`; opacity is clamped into `0..100`.
+ *
+ * SHIM-007 owner=Core-Architecture remove=WP-12 reason=legacy-authority-still-executes
  */
 export function canonicalTransform(input: TransformInput | null | undefined): CanonicalTransform {
   if (!input) return { ...IDENTITY_TRANSFORM };

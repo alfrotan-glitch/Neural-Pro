@@ -1,9 +1,9 @@
 import type { ClipId, SourceId } from './identity';
 import type { Seconds } from './time';
-import { makeInterval, type TimeInterval } from './time';
+import type { TimeInterval } from './time';
 import type { TransformInput } from './transform';
 import { canonicalTransform, type CanonicalTransform } from './transform';
-import { getTimelineDuration, isClipActiveAt } from './duration';
+import { getClipTimelineInterval, getTimelineDuration, isClipActiveAt } from './duration';
 
 /**
  * Canonical clip.
@@ -100,9 +100,15 @@ export function normalizeClips(clips: readonly PersistedClip[]): CanonicalClip[]
   return clips.map(normalizeClip);
 }
 
-/** Half-open timeline interval `[startAt, startAt + effectiveDuration)`. */
+/**
+ * Half-open timeline interval `[startAt, startAt + effectiveDuration)`.
+ *
+ * Delegates to `duration.getClipTimelineInterval` so the interval rule exists
+ * once. Both agree by construction: a canonical clip's `effectiveDuration` is
+ * `getTimelineDuration` of its own fields.
+ */
 export function clipInterval(clip: CanonicalClip): TimeInterval {
-  return makeInterval(clip.startAt, clip.effectiveDuration);
+  return getClipTimelineInterval(clip);
 }
 
 export function isActiveAt(clip: CanonicalClip, projectTime: Seconds): boolean {

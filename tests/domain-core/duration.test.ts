@@ -17,7 +17,7 @@ import {
   sourceTimeToProjectTime,
   type ClipDurationInput,
 } from '../../src/domain/core/duration';
-import { assertInterval } from '../../src/domain/core/time';
+import { assertInterval, framesForDuration } from '../../src/domain/core/time';
 
 const clip = (overrides: Partial<ClipDurationInput> & { duration: number }): ClipDurationInput => ({
   startAt: 0,
@@ -162,4 +162,6 @@ export default suite('duration — one authority for clip and project duration',
   equal(projectFrameCount(1, 30), 30, 'one second @30fps is 30 frames');
   equal(projectFrameCount(0, 30), 0, 'a zero-length project has no frames');
   equal(projectFrameCount(1, 0), 30, 'an invalid fps falls back to the default, never to a division by zero');
+  equal(projectFrameCount(1, 10_000), 240, 'frame counts use the single fps authority, so an absurd fps is clamped');
+  equal(projectFrameCount(1, 30), framesForDuration(1, 30), 'projectFrameCount delegates to the one frame-count rule');
 });
