@@ -1,0 +1,16 @@
+const fs = require('fs');
+const assert = require('assert');
+const path = require('path');
+const root = path.resolve(__dirname, '..', '..');
+const model = fs.readFileSync(root + '/src/core/engine/customSubscribeRenderModel.ts', 'utf8');
+const preview = fs.readFileSync(root + '/src/components/player/SubscribeTemplates.tsx', 'utf8');
+const exporter = fs.readFileSync(root + '/src/core/engine/render/CanvasExportRenderer.ts', 'utf8');
+assert.match(model, /getCustomSubscribeAnimationStage/);
+assert.match(model, /animationSpeed/);
+assert.match(preview, /getCustomSubscribeAnimationStage\(/);
+assert.match(preview, /properties\?\.animationSpeed/);
+assert.match(exporter, /normalizeCustomSubscribeProperties/);
+assert.match(exporter, /getCustomSubscribeAnimationStage\(/);
+assert.match(exporter, /customSubscribeProps\.brandName/);
+assert.match(exporter, /sourceId === 'st_sub' \|\| sourceId === 'ef_sub'/);
+console.log('PHASE_P3_CUSTOM_SUBSCRIBE_PARITY=PASS');

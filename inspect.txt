@@ -1,0 +1,401 @@
+      case 'bottom':
+        updateNodesProperty(selectedNodeIds, 'transform.y', 300);
+        break;
+      case 'center':
+        updateNodesProperty(selectedNodeIds, 'transform.x', 0);
+        updateNodesProperty(selectedNodeIds, 'transform.y', 0);
+        break;
+    }
+    showToast(`🎯 Aligned clip position to ${position}`);
+  };
+
+  // Auto translate mock execution
+  const handleAutoTranslate = () => {
+    setIsTranslating(true);
+    setTimeout(() => {
+      setIsTranslating(false);
+      showToast(`🌐 Automatically translated captions to ${translateLang === 'es' ? 'Spanish' : translateLang === 'fa' ? 'Persian' : 'French'}!`);
+    }, 1500);
+  };
+
+  // TTS Voice generator mock execution
+  const handleGenerateTTS = () => {
+    setIsTTSGenerating(true);
+    setTimeout(() => {
+      setIsTTSGenerating(false);
+      showToast(`🔊 Generated TTS Audio track with "${selectedVoice === 'sweet_girl' ? 'Sweet Girl' : 'Male Narrator'}" voice preset!`);
+    }, 1800);
+  };
+
+  // Helper to convert timecode HH:MM:SS:FF to decimal seconds
+  const timecodeToSeconds = (timecode: string): number => {
+    const parts = timecode.split(':');
+    if (parts.length < 3) return 0;
+    const h = parseInt(parts[0], 10) || 0;
+    const m = parseInt(parts[1], 10) || 0;
+    const s = parseInt(parts[2], 10) || 0;
+    const f = parts[3] ? (parseInt(parts[3], 10) || 0) : 0;
+    return parseFloat((h * 3600 + m * 60 + s + (f / 30)).toFixed(2));
+  };
+
+  // Auto-Captioning pipeline via Gemini API
+  const handleAutoCaptionGenerate = async () => {
+    setIsGeneratingCaptions(true);
+    showToast('⚡ Extracting timeline audio track and invoking Gemini STT pipeline...');
+    try {
+      const response = await fetch('/api/generate-captions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          audioClipName: 'lofi_ambient_vibes.mp3',
+          duration: totalDuration,
+          topicPrompt: captionPrompt,
+        }),
+      });
+      const data = await response.json();
+      if (data.captions && Array.isArray(data.captions)) {
+        // Map response blocks to ClipNodes
+        const newClips = data.captions.map((cap: any) => {
+          const startSeconds = timecodeToSeconds(cap.start_time);
+          const endSeconds = timecodeToSeconds(cap.end_time);
+          const clipDuration = Math.max(1.0, parseFloat((endSeconds - startSeconds).toFixed(2)));
+          
+          return {
+            id: cap.id,
+            sourceId: 'ai_caption_source',
+            startAt: startSeconds,
+            duration: clipDuration,
+            trim: { in: 0, out: clipDuration },
+            transform: { x: 0, y: 65, scale: 100, rotation: 0, opacity: 100 },
+            properties: {
+              name: `Caption ${cap.id}`,
+              textContent: cap.text,
+              fontFamily: 'Inter',
+              fontSize: 22,
+              textColor: '#ffffff',
+              color: 'from-pink-600 to-pink-500',
+              words: cap.words || [],
+              speaker: cap.speaker || 'Host A',
+              captionTheme: 'karaoke'
+            }
+          };
+        });
+
+        const textTrackIndex = tracks.findIndex(t => t.type === 'text');
+        if (textTrackIndex !== -1) {
+          const newTracks = [...tracks];
+          newTracks[textTrackIndex] = {
+            ...newTracks[textTrackIndex],
+            clips: newClips
+          };
+          // Dynamically update tracks on project store directly to render on timeline
+          { const project = useProjectStore.getState(); project.executeCommand(createTrackSnapshotCommand('Apply Inspector Track Changes', project.tracks, newTracks)); }
+          showToast(`🎉 Generated ${newClips.length} precise auto-captions with word-level highlights!`);
+        } else {
+          showToast('❌ Failed: Could not locate a text caption track.');
+        }
+      } else {
+        showToast('❌ Auto-captions generation returned an empty or invalid format.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      showToast(`❌ STT Service error: ${err.message || 'connection failed'}`);
+    } finally {
+      setIsGeneratingCaptions(false);
+    }
+  };
+
+  // Upload and parse SRT subtitle files
+  const handleSrtUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const content = e.target?.result;
+      if (typeof content !== 'string') return;
+
+      showToast('📂 Deserializing SRT file...');
+      try {
+        const response = await fetch('/api/parse-srt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ srtContent: content }),
+        });
+        const data = await response.json();
+        if (data.captions && Array.isArray(data.captions)) {
+          const newClips = data.captions.map((cap: any) => {
+            const startSeconds = timecodeToSeconds(cap.start_time);
+            const endSeconds = timecodeToSeconds(cap.end_time);
+            const clipDuration = Math.max(1.0, parseFloat((endSeconds - startSeconds).toFixed(2)));
+
+            return {
+              id: cap.id,
+              sourceId: 'uploaded_caption_source',
+              startAt: startSeconds,
+              duration: clipDuration,
+              trim: { in: 0, out: clipDuration },
+              transform: { x: 0, y: 65, scale: 100, rotation: 0, opacity: 100 },
+              properties: {
+                name: `SRT ${cap.id}`,
+                textContent: cap.text,
+                fontFamily: 'Inter',
+                fontSize: 22,
+                textColor: '#ffffff',
+                color: 'from-pink-600 to-pink-500',
+                words: cap.words || [],
+                captionTheme: 'karaoke'
+              }
+            };
+          });
+
+          const textTrackIndex = tracks.findIndex(t => t.type === 'text');
+          if (textTrackIndex !== -1) {
+            const newTracks = [...tracks];
+            newTracks[textTrackIndex] = {
+              ...newTracks[textTrackIndex],
+              clips: newClips
+            };
+            { const project = useProjectStore.getState(); project.executeCommand(createTrackSnapshotCommand('Apply Inspector Track Changes', project.tracks, newTracks)); }
+            showToast(`📂 Imported ${newClips.length} subtitles from SRT file!`);
+          } else {
+            showToast('❌ Failed: Could not locate text track.');
+          }
+        } else {
+          showToast('❌ Could not parse SRT file successfully.');
+        }
+      } catch (err: any) {
+        console.error(err);
+        showToast('❌ SRT Import failed.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  // Export current timeline captions to an .srt file
+  const handleSrtExport = async () => {
+    const textTrack = tracks.find(t => t.type === 'text');
+    if (!textTrack || textTrack.clips.length === 0) {
+      showToast('⚠️ No timeline captions exist to export!');
+      return;
+    }
+
+    const captionsForApi = textTrack.clips.map(clip => {
+      const hStr = (seconds: number) => {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = Math.floor(seconds % 60);
+        const f = Math.floor((seconds % 1) * 30);
+        const pad = (n: number) => n.toString().padStart(2, '0');
+        return `${pad(h)}:${pad(m)}:${pad(s)}:${pad(f)}`;
+      };
+      
+      return {
+        id: clip.id,
+        start_time: hStr(clip.startAt),
+        end_time: hStr(clip.startAt + clip.duration),
+        text: clip.properties.textContent || '',
+      };
+    });
+
+    try {
+      showToast('📥 Triggering SRT serialization...');
+      const response = await fetch('/api/export-srt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ captions: captionsForApi }),
+      });
+      const data = await response.json();
+      if (data.srt) {
+        // Create download blob
+        const blob = new Blob([data.srt], { type: 'text/srt;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', 'project_subtitles.srt');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.setTimeout(() => URL.revokeObjectURL(url), 0);
+        showToast('📥 Downloaded project_subtitles.srt successfully!');
+      } else {
+        showToast('❌ Export failed: Invalid response.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      showToast('❌ SRT Export failed.');
+    }
+  };
+
+  // AI Refine pipeline to restore punctuation and capitalization on current captions
+  const handleAiRefine = async () => {
+    const textTrack = tracks.find(t => t.type === 'text');
+    if (!textTrack || textTrack.clips.length === 0) {
+      showToast('⚠️ No timeline captions exist to refine!');
+      return;
+    }
+
+    setIsRefiningCaptions(true);
+    showToast('⚡ Refining subtitles with advanced grammar & punctuation engine...');
+
+    try {
+      // Filter clips based on applyScope
+      const targetClips = applyScope === 'single'
+        ? textTrack.clips.filter(clip => selectedNodeIds.includes(clip.id))
+        : textTrack.clips;
+
+      if (targetClips.length === 0) {
+        showToast('⚠️ Please select at least one subtitle clip to refine!');
+        setIsRefiningCaptions(false);
+        return;
+      }
+
+      const captionsForApi = targetClips.map(clip => {
+        const words = clip.properties.words || [];
+        const text = clip.properties.textContent || clip.properties.name || '';
+        
+        const hStr = (seconds: number) => {
+          const h = Math.floor(seconds / 3600);
+          const m = Math.floor((seconds % 3600) / 60);
+          const s = Math.floor(seconds % 60);
+          const f = Math.floor((seconds % 1) * 30);
+          const pad = (n: number) => n.toString().padStart(2, '0');
+          return `${pad(h)}:${pad(m)}:${pad(s)}:${pad(f)}`;
+        };
+
+        return {
+          id: clip.id,
+          start_time: hStr(clip.startAt),
+          end_time: hStr(clip.startAt + clip.duration),
+          text: text,
+          words: words.map((w: any) => ({
+            word: w.word,
+            start: w.start,
+            end: w.end
+          }))
+        };
+      });
+
+      const response = await fetch('/api/refine-captions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          captions: captionsForApi,
+          grammarPrompt,
+          restorePunctuation
+        }),
+      });
+
+      const data = await response.json();
+      if (data.captions && Array.isArray(data.captions)) {
+        const refinedClips = textTrack.clips.map((clip) => {
+          const cap = data.captions.find((c: any) => c.id === clip.id);
+          if (!cap) return clip;
+
+          const startSeconds = timecodeToSeconds(cap.start_time);
+          const endSeconds = timecodeToSeconds(cap.end_time);
+          const clipDuration = Math.max(1.0, parseFloat((endSeconds - startSeconds).toFixed(2)));
+
+          return {
+            ...clip,
+            startAt: startSeconds,
+            duration: clipDuration,
+            trim: { in: 0, out: clipDuration },
+            properties: {
+              ...(clip.properties || {}),
+              name: `Refined ${cap.id}`,
+              textContent: cap.text,
+              words: cap.words || [],
+            }
+          };
+        });
+
+        const textTrackIndex = tracks.findIndex(t => t.type === 'text');
+        if (textTrackIndex !== -1) {
+          const newTracks = [...tracks];
+          newTracks[textTrackIndex] = {
+            ...newTracks[textTrackIndex],
+            clips: refinedClips
+          };
+          { const project = useProjectStore.getState(); project.executeCommand(createTrackSnapshotCommand('Apply Inspector Track Changes', project.tracks, newTracks)); }
+          showToast(`🎉 Refined ${data.captions.length} captions with strict grammatical alignment!`);
+        } else {
+          showToast('❌ Failed: Could not locate text track.');
+        }
+      } else {
+        showToast('❌ AI Refine failed: Invalid response format.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      showToast(`❌ AI Refine error: ${err.message || 'connection failed'}`);
+    } finally {
+      setIsRefiningCaptions(false);
+    }
+  };
+
+  const handleAddNewCaption = () => {
+    const textTrackIndex = tracks.findIndex(t => t.type === 'text');
+    if (textTrackIndex === -1) {
+      showToast('❌ Could not locate text track.');
+      return;
+    }
+    
+    const newId = `custom_cap_${Date.now()}`;
+    const newClip = {
+      id: newId,
+      sourceId: 'user_created_caption_source',
+      startAt: currentTime,
+      duration: 3.0,
+      trim: { in: 0, out: 3.0 },
+      transform: { x: 0, y: 65, scale: 100, rotation: 0, opacity: 100 },
+      properties: {
+        name: `Caption`,
+        textContent: 'New subtitle text...',
+        fontFamily: 'Inter',
+        fontSize: 22,
+        textColor: '#ffffff',
+        color: 'from-pink-600 to-pink-500',
+        words: [
+          { word: 'New', start: currentTime, end: currentTime + 1.0 },
+          { word: 'subtitle', start: currentTime + 1.0, end: currentTime + 2.0 },
+          { word: 'text...', start: currentTime + 2.0, end: currentTime + 3.0 }
+        ],
+        captionTheme: 'karaoke'
+      }
+    };
+
+    const newTracks = [...tracks];
+    const targetTrack = newTracks[textTrackIndex];
+    newTracks[textTrackIndex] = {
+      ...targetTrack,
+      clips: [...targetTrack.clips, newClip]
+    };
+    { const project = useProjectStore.getState(); project.executeCommand(createTrackSnapshotCommand('Apply Inspector Track Changes', project.tracks, newTracks)); }
+    setSelectedNodeIds([newId]);
+    showToast('➕ Added new caption block at playhead!');
+  };
+
+  // Render Panel content dynamically based on selected clip type
+  const renderContent = () => {
+    switch (trackType) {
+      
+      // ==========================================
+      // VIDEO INSPECTOR PANEL (4 TABS)
+      // ==========================================
+      case 'video': {
+        const scale = activeNode.transform.scale ?? 100;
+        const x = activeNode.transform.x ?? 0;
+        const y = activeNode.transform.y ?? 0;
+        const rotation = activeNode.transform.rotation ?? 0;
+        const opacity = activeNode.transform.opacity ?? 100;
+        const blendMode = activeNode.properties.blendMode ?? 'normal';
+
+        // Video AI Tools
+        const aiEnhance = activeNode.properties.aiEnhance ?? false;
+        const aiNoiseReduce = activeNode.properties.aiNoiseReduce ?? false;
+        const aiBgChange = activeNode.properties.aiBgChange ?? false;
+        const aiBgRemove = activeNode.properties.aiBgRemove ?? false;
+        const aiExpand = activeNode.properties.aiExpand ?? false;
+        const aiRemix = activeNode.properties.aiRemix ?? false;
+        const aiLipSync = activeNode.properties.aiLipSync ?? false;
+

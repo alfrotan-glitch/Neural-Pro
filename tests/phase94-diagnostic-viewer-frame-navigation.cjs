@@ -1,0 +1,17 @@
+const fs = require('fs');
+const path = require('path');
+const root = path.resolve(__dirname, '..');
+const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
+const viewer = read('src/features/video-studio/playback/components/RenderDiagnosticReplayViewer.tsx');
+const navigator = read('src/features/video-studio/playback/services/renderDiagnosticFrameNavigator.ts');
+const exportPanel = read('src/features/video-studio/export/components/ExportPanel.tsx');
+if (!viewer.includes('Frame Navigation')) throw new Error('viewer frame navigation UI missing');
+if (!viewer.includes('resolveBundleAtTime')) throw new Error('viewer frame resolver contract missing');
+if (!viewer.includes('stepDiagnosticFrame')) throw new Error('viewer frame stepping missing');
+if (!navigator.includes('snapProjectTimeToFrame')) throw new Error('frame snapping missing');
+if (!navigator.includes('createDiagnosticFrameResolver')) throw new Error('frame resolver missing');
+if (!navigator.includes('capturePreviewExportSnapshotPair')) throw new Error('frame resolver is not using canonical pair capture');
+if (!exportPanel.includes('onNavigateToProjectTime')) throw new Error('ExportPanel does not wire diagnostic navigation');
+if (!exportPanel.includes('createDiagnosticFrameResolver')) throw new Error('ExportPanel does not wire frame resolver');
+if (!exportPanel.includes('setCurrentTime(time)')) throw new Error('diagnostic navigation is not connected to project time');
+console.log('PHASE94_DIAGNOSTIC_VIEWER_FRAME_NAVIGATION = PASS');

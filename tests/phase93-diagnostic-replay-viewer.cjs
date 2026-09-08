@@ -1,0 +1,20 @@
+const fs = require('fs');
+const path = require('path');
+const root = path.resolve(__dirname, '..');
+const component = fs.readFileSync(path.join(root, 'src/features/video-studio/playback/components/RenderDiagnosticReplayViewer.tsx'), 'utf8');
+const exportIndex = fs.readFileSync(path.join(root, 'src/features/video-studio/playback/components/index.ts'), 'utf8');
+const servicesIndex = fs.readFileSync(path.join(root, 'src/features/video-studio/playback/index.ts'), 'utf8');
+const bundle = fs.readFileSync(path.join(root, 'src/features/video-studio/playback/services/renderDiagnosticBundle.ts'), 'utf8');
+const replay = fs.readFileSync(path.join(root, 'src/features/video-studio/playback/services/renderDiagnosticReplay.ts'), 'utf8');
+function must(condition, message) { if (!condition) throw new Error(message); }
+must(component.includes('RenderDiagnosticReplayViewer'), 'viewer component missing');
+must(component.includes('loadRenderDiagnosticBundle'), 'viewer must load persisted bundles');
+must(component.includes('replayRenderDiagnosticPayload'), 'viewer must replay stored payload');
+must(component.includes('previewHash') && component.includes('exportHash'), 'viewer must expose both hashes');
+must(component.includes('categoryEntries') && component.includes('entry.category'), 'viewer must expose diff entries');
+must(component.includes('projectTime'), 'viewer must expose project time');
+must(exportIndex.includes("./RenderDiagnosticReplayViewer"), 'component export missing');
+must(servicesIndex.includes("export * from './components';"), 'playback public export missing');
+must(bundle.includes('RENDER_DIAGNOSTIC_BUNDLE_SCHEMA_VERSION'), 'bundle schema contract missing');
+must(replay.includes('replayRenderDiagnosticPayload'), 'replay contract missing');
+console.log('PHASE93_DIAGNOSTIC_REPLAY_VIEWER=PASS');

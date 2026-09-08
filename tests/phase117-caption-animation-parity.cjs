@@ -1,0 +1,17 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '..');
+const contract = fs.readFileSync(path.join(root, 'src/features/video-studio/captions/services/captionAnimationContract.ts'), 'utf8');
+const preview = fs.readFileSync(path.join(root, 'src/components/player/SubtitleRenderer.tsx'), 'utf8');
+const exporter = fs.readFileSync(path.join(root, 'src/core/engine/CaptionRenderer.ts'), 'utf8');
+assert.match(contract, /resolveCaptionAnimationState/);
+for (const preset of ['fade','slide','zoom','bounce','blur','pop','scale','none']) assert.match(contract, new RegExp("case '"+preset+"'"));
+assert.match(preview, /resolveCaptionAnimationState\(\{/);
+assert.match(preview, /wordProgress/);
+assert.match(preview, /theme === 'pop' \|\| theme === 'bounce' \|\| theme === 'flip-rotate'/);
+assert.match(exporter, /resolveCaptionAnimationState\(\{/);
+assert.match(exporter, /usesGenericPreset/);
+assert.match(exporter, /animationState\.opacity/);
+assert.match(exporter, /animationState\.blurPx/);
+console.log('PHASE117_CAPTION_ANIMATION_PARITY=PASS');

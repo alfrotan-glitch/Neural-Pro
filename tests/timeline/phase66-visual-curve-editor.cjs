@@ -1,0 +1,16 @@
+const fs = require('fs');
+const path = require('path');
+const root = path.resolve(__dirname, '../..');
+const curve = fs.readFileSync(path.join(root, 'src/features/video-studio/timeline/components/AnimationCurveEditor.tsx'),'utf8');
+const commands = fs.readFileSync(path.join(root, 'src/features/video-studio/animation/keyframeCommands.ts'),'utf8');
+const markers = fs.readFileSync(path.join(root, 'src/features/video-studio/timeline/components/TimelineAnimationMarkers.tsx'),'utf8');
+const must = (text, needle, label) => { if (!text.includes(needle)) throw new Error(label); };
+must(curve, 'AnimationCurveEditor', 'curve editor missing');
+must(curve, "beginHandle=(e:Entry,w:'in'|'out'", 'handle interaction contract missing');
+must(curve, "viewHandle(left,'out')", 'out handle contract missing');
+must(curve, 'SetAnimationKeyframeBezierControlsCommand', 'curve must commit via command');
+must(curve, 'defaultBezier', 'bezier controls must have deterministic defaults');
+must(curve, 'y:clamp(oh.y+dy,-2,3)', 'curve must support deterministic overshoot handle range');
+must(commands, 'Math.max(-2, Math.min(3', 'command must preserve bezier overshoot range');
+must(markers, 'AnimationCurveEditor', 'curve editor must be wired into timeline markers');
+console.log('PHASE66_VISUAL_CURVE_EDITOR = PASS');

@@ -1,0 +1,15 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '..');
+const commands = fs.readFileSync(path.join(root, 'src/features/video-studio/animation/commands.ts'), 'utf8');
+const keyframeCommands = fs.readFileSync(path.join(root, 'src/features/video-studio/animation/keyframeCommands.ts'), 'utf8');
+const markers = fs.readFileSync(path.join(root, 'src/features/video-studio/timeline/components/TimelineAnimationMarkers.tsx'), 'utf8');
+const services = fs.readFileSync(path.join(root, 'src/features/video-studio/animation/services.ts'), 'utf8');
+assert.match(commands, /input\.interpolation \?\? existing\?\.interpolation \?\? 'linear'/, 'existing interpolation must be preserved during keyframe update');
+assert.match(commands, /input\.easing \?\? existing\?\.easing \?\? 'linear'/, 'existing easing must be preserved during keyframe update');
+assert.match(keyframeCommands, /class SetAnimationKeyframeInterpolationCommand/, 'interpolation changes must be command-backed');
+assert.match(markers, /aria-label="Keyframe interpolation"/, 'timeline must expose interpolation control');
+assert.match(markers, /\['linear','bezier','hold'\]/, 'hold interpolation must be user-selectable');
+assert.match(services, /if \(left\.interpolation === 'hold'\) return left\.value;/, 'hold interpolation must remain constant across a segment');
+console.log('PHASE64_ANIMATION_TEMPORAL_INTEGRITY=PASS');

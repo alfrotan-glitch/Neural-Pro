@@ -1,0 +1,15 @@
+const fs = require('fs');
+const path = require('path');
+const root = path.resolve(__dirname, '..');
+const read = p => fs.readFileSync(path.join(root, p), 'utf8');
+const must = (ok, message) => { if (!ok) throw new Error(message); };
+const capture = read('src/features/video-studio/playback/services/renderDiagnosticBundleCapture.ts');
+const index = read('src/features/video-studio/playback/services/index.ts');
+const bundle = read('src/features/video-studio/playback/services/renderDiagnosticBundle.ts');
+must(capture.includes('captureRenderDiagnosticBundleOnMismatch'), 'auto-capture service missing');
+must(capture.includes('if (diagnostic.equal)'), 'equality gate missing');
+must(capture.includes('saveRenderDiagnosticBundle'), 'automatic persistence missing');
+must(capture.includes('previewHash') && capture.includes('exportHash'), 'hashes missing from bundle capture');
+must(index.includes("./renderDiagnosticBundleCapture"), 'service export missing');
+must(bundle.includes('RenderDiagnosticBundleStore'), 'store contract missing');
+console.log('PHASE91_DIAGNOSTIC_BUNDLE_AUTO_CAPTURE = PASS');

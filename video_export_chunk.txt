@@ -1,0 +1,241 @@
+          ).map(clip => ({ clip, trackType: track.type }))
+        );
+
+        console.info(`[Render-Based Audio] Found ${audioClips.length} audio sources for offline rendering.`);
+
+        // Parallel fetch and decode all audio buffers
+        const bufferPromises = audioClips.map(async ({ clip }) => {
+          const url = clip.properties?.audioUrl || clip.properties?.videoUrl;
+          if (!url) return null;
+          
+          const buffer = await loadAudioBuffer(url, offlineCtx);
+          return { clip, buffer };
+        });
+
+        const decodedBuffers = (await Promise.all(bufferPromises)).filter((b): b is { clip: ClipNode; buffer: AudioBuffer } => b !== null);
+
+        if (isCancelled) return;
+
+        // Schedule all clips on the offline audio graph
+        decodedBuffers.forEach(({ clip, buffer }) => {
+          const source = offlineCtx.createBufferSource();
+          source.buffer = buffer;
+
+          const gainNode = offlineCtx.createGain();
+          const levelDb = clip.properties?.levelDb !== undefined ? clip.properties.levelDb : 0;
+          const isMuted = clip.properties?.isMuted || false;
+          const gainValue = isMuted ? 0 : Math.pow(10, levelDb / 20);
+          
+          gainNode.gain.setValueAtTime(gainValue, offlineCtx.currentTime);
+          
+          source.connect(gainNode);
+          gainNode.connect(offlineCtx.destination);
+
+          // Calculate offset, start, and duration
+          const startAt = clip.startAt;
+          const offset = clip.trim?.in || 0;
+          const duration = clip.duration;
+
+          try {
+            source.start(startAt, offset, duration);
+          } catch (err) {
+            console.warn(`Failed to schedule audio source for clip ${clip.id}:`, err);
+          }
+        });
+
+        // Track progress during offline render
+        const renderPromise = offlineCtx.startRendering();
+        
+        // Simulate progress for UI feedback (offline audio renders extremely fast, so we show rapid completion)
+        let audioProgress = 2;
+        const progressInterval = setInterval(() => {
+          if (audioProgress < 15) {
+            audioProgress += 1;
+            if (!isCancelled) setExportProgress(audioProgress);
+          }
+        }, 50);
+
+        try {
+          const renderedBuffer = await renderPromise;
+          finalAudioBuffer = renderedBuffer;
+          setExportProgress(15);
+          const wavBlob = audioBufferToWav(renderedBuffer);
+
+          if (isCancelled) return;
+
+          audioBase64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(wavBlob);
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = (err) => reject(err);
+          });
+        } finally {
+          clearInterval(progressInterval);
+        }
+
+      } catch (audioErr: any) {
+        console.error("Offline audio rendering failed, falling back to silent buffer:", audioErr);
+        // Fallback to a silent wav blob so the export still succeeds!
+        const sampleRate = 44100;
+        const silentCtx = new OfflineAudioContext(2, Math.max(sampleRate, Math.round(actualVideoDuration * sampleRate)), sampleRate);
+        const renderedBuffer = await silentCtx.startRendering();
+        finalAudioBuffer = renderedBuffer;
+        const wavBlob = audioBufferToWav(renderedBuffer);
+        audioBase64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(wavBlob);
+          reader.onloadend = () => resolve(reader.result as string);
+        });
+      }
+
+      setExportProgress(31);
+      clearExportOverlayImageCache();
+      await preloadExportOverlayImages();
+      exportMediaRegistryRef.current = collectExportVideoElements();
+
+      // ----------------------------------------------------
+      // PHASE 2: ADVANCED FRAME-BY-FRAME SEQUENTIAL VIDEO EXPORT
+      // ----------------------------------------------------
+      showToast("🚀 مرحله ۲ از ۲: پردازش محلی با شتاب‌دهنده گرافیکی (GPU Local Render)...");
+
+      const totalFrames = Math.ceil(actualVideoDuration * exportFps);
+      
+
+
+      
+      const renderFrame = async (frameIndex: number) => {
+        if (isCancelled) return null;
+
+        const targetTime = frameIndex / exportFps;
+        if (activeSignal?.aborted) {
+          throw activeSignal.reason instanceof Error
+            ? activeSignal.reason
+            : new Error('Export cancelled.');
+        }
+
+        // Export owns media seeking. React's playback effects are explicitly
+        // disabled while exporting, so there is exactly one seek authority.
+        await seekActiveVideoClips(
+          scopedTracks,
+          targetTime,
+          exportMediaRegistryRef.current ?? new Map(),
+          activeSignal ?? undefined,
+        );
+
+        if (isCancelled) return null;
+        if (activeSignal?.aborted) {
+          throw activeSignal.reason instanceof Error
+            ? activeSignal.reason
+            : new Error('Export cancelled.');
+        }
+
+        // Export overlays and captions are rendered directly into the
+        // full-resolution export canvas. The React preview DOM is never
+        // rasterized into the export frame.
+        exportRendererRef.current!.render(
+          canvas,
+          ctx,
+          width,
+          height,
+          targetTime,
+          {
+            state: renderState,
+            imageCache: exportOverlayImageCacheRef.current,
+            mediaByClipId: exportMediaRegistryRef.current ?? new Map(),
+          },
+        );
+
+        return canvas;
+      };
+
+      try {
+        const exportSettings: ExportJob['settings'] = activeSettings;
+
+        const blob = await exportVideoWebCodecs(
+          exportSettings,
+          totalFrames,
+          finalAudioBuffer,
+          renderFrame,
+          (progress) => setExportProgress(progress.percentage),
+          activeSignal ?? undefined
+        );
+        if (isCancelled) return;
+        
+        setExportProgress(100);
+        const fileName = `${projectName.toLowerCase().replace(/\s+/g, '_')}_render.${activeSettings.format}`;
+        const objectUrl = URL.createObjectURL(blob);
+        
+        setRenderedBlobUrl(objectUrl);
+        setRenderedFileName(fileName);
+
+        const queuedJobId = [...queueResolversRef.current.keys()].find(id => queueResolversRef.current.get(id)?.signal === activeSignal);
+        if (queuedJobId) {
+          queueResolversRef.current.get(queuedJobId)?.resolve(blob);
+          queueResolversRef.current.delete(queuedJobId);
+        }
+        
+        try {
+          const link = document.createElement('a');
+          link.href = objectUrl;
+          link.download = fileName;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        } catch (err) {
+          console.warn("Auto-download trigger blocked", err);
+        }
+        showToast("🎉 ویدیو با موفقیت از طریق GPU سیستم شما رندر و دانلود شد! (Hardware-Accelerated Render Complete!)");
+      } catch (err: any) {
+        const queuedJobId = [...queueResolversRef.current.keys()].find(id => queueResolversRef.current.get(id)?.signal === activeSignal);
+        if (queuedJobId) {
+          queueResolversRef.current.get(queuedJobId)?.reject(err instanceof Error ? err : new Error(String(err)));
+          queueResolversRef.current.delete(queuedJobId);
+        }
+        showToast(`❌ خطا در رندر و مونتاژ ویدیو: ${err.message}`);
+        console.error("WebCodecs export error:", err);
+      }
+      } catch (outerErr: any) {
+        console.error("Pipeline error:", outerErr);
+      } finally {
+        clearExportOverlayImageCache();
+        exportMediaRegistryRef.current = null;
+        setIsExporting(false);
+        activeExportSignalRef.current = null;
+        activeExportSettingsRef.current = null;
+        pendingExportClipIdsRef.current = undefined;
+        // Restore active states
+        store.setIsPlaying(false);
+        store.setCurrentTime(0);
+        getAudioMixController().setMasterMuted(false);
+      }
+    };
+
+    runRenderPipeline();
+
+    return () => {
+      isCancelled = true;
+      // Reset isPlaying
+      const store = useProjectStore.getState();
+      store.setIsPlaying(false);
+      store.setCurrentTime(0);
+      getAudioMixController().setMasterMuted(false);
+    };
+  }, [isExporting, exportQuality, exportFps, exportFormat, projectName, totalDuration]);
+
+  const renderPanel = (panelId: PanelId) => {
+    switch (panelId) {
+      case 'media':
+        return <ResourceSidebar onAddClip={handleAddAssetToTimeline} />;
+      case 'preview':
+        return <VideoPlayer safeAreaGrid={true} initialScript={initialScript} isExporting={isExporting} />;
+      case 'inspector':
+        return <InspectorEngine />;
+      case 'timeline':
+        return <VirtualizedTimeline />;
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <VideoStudioShellView

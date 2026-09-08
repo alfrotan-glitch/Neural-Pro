@@ -1,0 +1,11 @@
+const fs = require('fs');
+const path = require('path');
+const root = path.resolve(__dirname, '..');
+const read = p => fs.readFileSync(path.join(root, p), 'utf8');
+const must = (ok, message) => { if (!ok) throw new Error(message); };
+const exportService = read('src/features/video-studio/export/services/exportService.ts');
+must(exportService.includes('diagnosticBundleStore'), 'Export diagnostic store input missing');
+must(exportService.includes('captureRenderDiagnosticBundleOnMismatch'), 'Export auto-capture integration missing');
+must(exportService.includes('await captureRenderDiagnosticBundleOnMismatch'), 'Export mismatch capture is not awaited');
+must(exportService.includes('assertRenderSnapshotParity'), 'Parity gate must remain active after capture');
+console.log('PHASE91_EXPORT_AUTO_DIAGNOSTIC_CAPTURE = PASS');

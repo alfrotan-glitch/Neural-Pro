@@ -1,0 +1,178 @@
+@import "tailwindcss";
+
+/* -------------------------------------------------------------------------- */
+/* CUSTOM LIGHT THEME SYSTEM OVERRIDES                                        */
+/* -------------------------------------------------------------------------- */
+
+.theme-light {
+  /* Light Palette Variables */
+  --bg-primary: #f1f3f6;       /* Soft light-gray page background */
+  --bg-secondary: #ffffff;     /* Solid white panel content cards */
+  --bg-tertiary: #fafbfc;      /* Light gray header/toolbar stripes */
+  --bg-hover: #f3f4f6;         /* Soft grey list-item/button hover hover */
+  --bg-active: #e5e7eb;        /* Selected items/button presses background */
+  --border-color: rgba(0, 0, 0, 0.08); /* Clean light grey borders */
+  --border-color-bold: rgba(0, 0, 0, 0.15);
+  
+  --text-primary: #111827;     /* High contrast charcoal black */
+  --text-secondary: #374151;   /* Medium dark gray */
+  --text-muted: #6b7280;       /* Muted gray for small logs/hints */
+}
+
+/* Page, Workspace, Main Containers */
+.theme-light,
+.theme-light .bg-\[\#050508\],
+.theme-light .bg-\[\#06070a\],
+.theme-light .bg-\[\#08090c\],
+.theme-light main.bg-\[\#06070a\] {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Standard Panels & Content Cards */
+.theme-light .bg-\[\#090a0f\],
+.theme-light .bg-\[\#0b0c10\],
+.theme-light .bg-\[\#0e0f14\] {
+  background-color: var(--bg-secondary) !important;
+}
+
+/* Panel Headers, Toolbars, and Sidebar Items */
+.theme-light .bg-\[\#111218\],
+.theme-light .bg-\[\#101117\],
+.theme-light .bg-\[\#171822\],
+.theme-light .bg-\[\#12131d\],
+.theme-light .bg-\[\#12131a\] {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* Drag hover highlight card */
+.theme-light .bg-\[\#161325\] {
+  background-color: #f5f3ff !important;
+}
+
+/* Force Light Borders */
+.theme-light .border-white\/5,
+.theme-light .border-white\/10,
+.theme-light .border-white\/20,
+.theme-light .border-transparent {
+  border-color: var(--border-color) !important;
+}
+
+/* Keep video player canvas background dark for contrast, but make containers light */
+.theme-light #video-player-container {
+  background-color: var(--bg-primary) !important;
+}
+
+.theme-light #video-stage-wrapper {
+  background-color: #0c0d12 !important; /* Keep video surround space dark */
+}
+
+/* Text Element Colors Override */
+.theme-light .text-white,
+.theme-light .text-gray-100,
+.theme-light .text-gray-200 {
+  color: var(--text-primary) !important;
+}
+
+.theme-light .text-gray-300,
+.theme-light .text-gray-400 {
+  color: var(--text-secondary) !important;
+}
+
+.theme-light .text-gray-500 {
+  color: var(--text-muted) !important;
+}
+
+/* Forms, Options, Select Lists and Inputs */
+.theme-light input,
+.theme-light select,
+.theme-light textarea {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-color-bold) !important;
+}
+
+.theme-light select option {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Buttons and Lists interactive feedback */
+.theme-light .hover\:bg-white\/5:hover,
+.theme-light .hover\:bg-white\/10:hover,
+.theme-light .hover\:bg-white\/\[0\.02\]:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+.theme-light .hover\:text-white:hover {
+  color: var(--text-primary) !important;
+}
+
+/* Buttons and icons that need secondary text */
+.theme-light .text-gray-400:hover {
+  color: var(--text-primary) !important;
+}
+
+/* Active elements / timelines */
+.theme-light .bg-black\/40 {
+  background-color: rgba(0, 0, 0, 0.04) !important;
+}
+
+.theme-light .border-purple-500\/10 {
+  border-color: rgba(168, 85, 247, 0.15) !important;
+}
+
+/* Keep timeline cursor and overlay text visible */
+.theme-light .text-purple-400 {
+  color: #7c3aed !important;
+}
+
+.theme-light .text-purple-100 {
+  color: #4c1d95 !important;
+}
+
+.theme-light .bg-purple-500\/10 {
+  background-color: rgba(139, 92, 246, 0.1) !important;
+}
+
+.theme-light .border-purple-500\/20 {
+  border-color: rgba(139, 92, 246, 0.2) !important;
+}
+
+/* Timeline tracks background & details */
+.theme-light .bg-\[\#12131d\] {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* Base custom scrollbars (Dark theme default) */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: #090a0f;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #232634;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #393e54;
+}
+
+/* Custom scrollbars for light theme */
+.theme-light ::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+.theme-light ::-webkit-scrollbar-thumb {
+  background: var(--bg-active);
+  border-radius: 4px;
+}
+
+.theme-light ::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}

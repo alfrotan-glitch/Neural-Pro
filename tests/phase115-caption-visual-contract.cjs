@@ -1,0 +1,27 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '..');
+const contract = fs.readFileSync(path.join(root, 'src/features/video-studio/captions/services/captionVisualContract.ts'), 'utf8');
+const preview = fs.readFileSync(path.join(root, 'src/components/player/SubtitleRenderer.tsx'), 'utf8');
+const renderer = fs.readFileSync(path.join(root, 'src/core/engine/CaptionRenderer.ts'), 'utf8');
+const index = fs.readFileSync(path.join(root, 'src/features/video-studio/captions/services/index.ts'), 'utf8');
+
+assert.match(contract, /export function getCaptionVisualContract/);
+assert.match(contract, /fontFamily = theme === 'bold-impact'/);
+assert.match(contract, /lineHeight: Math\.max/);
+assert.match(contract, /letterSpacing/);
+assert.match(contract, /wordSpacing/);
+assert.match(contract, /padding/);
+assert.match(preview, /getCaptionVisualContract/);
+assert.match(preview, /visualContract\.fontSize/);
+assert.match(preview, /visualContract\.letterSpacing/);
+assert.match(preview, /visualContract\.lineHeight/);
+assert.match(preview, /visualContract\.wordSpacing/);
+assert.match(preview, /visualContract\.padding/);
+assert.match(renderer, /getCaptionVisualContract/);
+assert.match(renderer, /getLetterSpacingTextWidth/);
+assert.match(renderer, /const letterSpacing = visual\.letterSpacing \* scale/);
+assert.match(renderer, /fillTextWithLetterSpacing\(ctx, visibleWord, drawX, drawY, letterSpacing\)/);
+assert.match(index, /export \* from '\.\/captionVisualContract'/);
+console.log('PHASE115_CAPTION_VISUAL_CONTRACT=PASS');

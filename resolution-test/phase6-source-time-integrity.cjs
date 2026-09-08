@@ -1,0 +1,10 @@
+const fs=require('fs');
+const drag=fs.readFileSync('src/features/video-studio/timeline/controllers/useTimelineDragExecution.ts','utf8');
+const detector=fs.readFileSync('src/features/video-studio/timeline/services/sceneDetectionService.ts','utf8');
+const actions=fs.readFileSync('src/features/video-studio/timeline/services/timelineActionService.ts','utf8');
+if(!drag.includes("(itemTargetLeft - sel.initialStartAt) * (c.properties.speed || 1.0)")) throw new Error('trim-left does not map project delta to source delta');
+if(!drag.includes("deltaTime * (c.properties.speed || 1.0)")) throw new Error('trim-right does not map project delta to source delta');
+if(!detector.includes('startTimeSeconds')) throw new Error('scene detector lacks source start option');
+if(!actions.includes('cut.time / speed')) throw new Error('scene cuts are not mapped back to timeline time');
+if(!actions.includes('sourceStart + localStart * speed')) throw new Error('scene segments do not preserve source trim range');
+console.log('PHASE6_SOURCE_TIME_INTEGRITY=PASS');

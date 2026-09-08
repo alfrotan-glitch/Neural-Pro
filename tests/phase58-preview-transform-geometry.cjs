@@ -1,0 +1,41 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '..');
+const playerPath = path.join(root, 'src/components/player/VideoPlayer.tsx');
+const hookPath = path.join(root, 'src/features/video-studio/playback/hooks/usePreviewTransformInteraction.ts');
+const servicePath = path.join(root, 'src/features/video-studio/playback/services/previewTransformInteractionService.ts');
+const modelPath = path.join(root, 'src/features/video-studio/playback/services/clipTransformModel.ts');
+const projectPath = path.join(root, 'src/features/video-studio/project/types/project.ts');
+const exportPath = path.join(root, 'src/core/engine/render/CanvasExportRenderer.ts');
+const captionExportPath = path.join(root, 'src/core/engine/CaptionRenderer.ts');
+for (const file of [playerPath, hookPath, servicePath, modelPath, projectPath, exportPath, captionExportPath]) assert.equal(fs.existsSync(file), true, `Missing ${file}`);
+const player = fs.readFileSync(playerPath, 'utf8');
+const hook = fs.readFileSync(hookPath, 'utf8');
+const service = fs.readFileSync(servicePath, 'utf8');
+const model = fs.readFileSync(modelPath, 'utf8');
+const project = fs.readFileSync(projectPath, 'utf8');
+const exporter = fs.readFileSync(exportPath, 'utf8');
+const captionExporter = fs.readFileSync(captionExportPath, 'utf8');
+
+assert.equal((player.match(/<PreviewResizeHandles clip=\{clip\} onResize=\{handleResizeMouseDown\} \/>/g) || []).length, 4,
+  'media/effect/caption/audio preview targets must all expose universal resize handles');
+assert.match(player, /const handles = \[/, 'the reusable resize control must define the handle matrix');
+for (const handle of ['nw','n','ne','e','se','s','sw','w']) assert.equal(player.includes(`['${handle}'`), true, `missing handle ${handle}`);
+assert.match(project, /scaleX\?: number/);
+assert.match(project, /scaleY\?: number/);
+assert.match(model, /const sx/);
+assert.match(model, /const sy/);
+assert.match(model, /scale\(\$\{sx\}, \$\{sy\}\)/);
+assert.match(service, /const hasHorizontal/);
+assert.match(service, /const hasVertical/);
+assert.match(service, /preserveAspect/);
+assert.match(service, /scaleX/);
+assert.match(service, /scaleY/);
+assert.match(hook, /previewResizeHandle/);
+assert.match(exporter, /canonicalTransform\.scaleX/);
+assert.match(exporter, /canonicalTransform\.scaleY/);
+assert.match(captionExporter, /plan\.transform\.scaleX/);
+assert.match(captionExporter, /plan\.transform\.scaleY/);
+
+console.log('PHASE58_PREVIEW_TRANSFORM_GEOMETRY=PASS');

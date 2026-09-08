@@ -1,0 +1,17 @@
+const fs=require('fs');
+const assert=require('assert');
+const type=fs.readFileSync('src/features/video-studio/animation/types/animation.ts','utf8');
+const svc=fs.readFileSync('src/features/video-studio/animation/services.ts','utf8');
+const cmds=fs.readFileSync('src/features/video-studio/animation/keyframeCommands.ts','utf8');
+const clip=fs.readFileSync('src/features/video-studio/animation/keyframeClipboardCommands.ts','utf8');
+const ui=fs.readFileSync('src/features/video-studio/timeline/components/TimelineAnimationMarkers.tsx','utf8');
+assert(type.includes('interface BezierHandle'));
+assert(type.includes('interface KeyframeBezierControls'));
+assert(type.includes('in?: BezierHandle') && type.includes('out?: BezierHandle'));
+assert(svc.includes('function cubic(') && svc.includes('solveBezierTForX'));
+assert(svc.includes('left.bezier?.out') && svc.includes('right.bezier?.in'));
+assert(!svc.includes('fixed 0.25/0.75 controls'));
+assert(cmds.includes('SetAnimationKeyframeBezierControlsCommand'));
+assert(clip.includes('bezier?: KeyframeBezierControls') && clip.includes('entry.bezier'));
+assert(ui.includes('aria-label="Bezier In X"') && ui.includes('aria-label="Bezier Out Y"'));
+console.log('PHASE65_BEZIER_CURVE_INTEGRITY=PASS');

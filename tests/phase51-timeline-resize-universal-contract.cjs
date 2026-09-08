@@ -1,0 +1,21 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '..');
+const resizePath = path.join(root, 'src/features/video-studio/timeline/services/timelineResizeService.ts');
+const dragPath = path.join(root, 'src/features/video-studio/timeline/controllers/useTimelineDragExecution.ts');
+const testText = fs.readFileSync(resizePath, 'utf8');
+const dragText = fs.readFileSync(dragPath, 'utf8');
+
+assert.match(testText, /MIN_TIMELINE_CLIP_DURATION = 0\.05/, 'resize must preserve a positive minimum duration');
+assert.match(testText, /sourceMediaDuration/, 'resize must honor authoritative source media duration when known');
+assert.match(testText, /current trim\.out is not the media boundary/i, 'resize must not confuse trim.out with source media boundary');
+assert.match(testText, /if \(sourceAvailableTimeline < minDuration\) return clip/, 'invalid right-resize boundary must fail safe instead of producing zero duration');
+assert.match(testText, /nextDuration = Math\.max\(minDuration, nextDuration\)/, 'right resize must preserve minimum duration after media-bound clamping');
+assert.match(testText, /const candidateTrimIn = Math\.max\(0, sourceIn \+ actualDelta \* speed\)/, 'left resize must advance source trim with clip movement');
+assert.match(testText, /const boundedTrimIn = sourceBounded/, 'left resize must respect authoritative media boundary');
+assert.match(testText, /if \(track\.isLocked\) return \{ \.\.\.track, clips: track\.clips\.map\(\(clip\) => structuredClone\(clip\)\) \}/, 'locked tracks must remain immutable during resize');
+assert.match(dragText, /resizeSelectedClips\(/, 'Timeline resize must use the canonical resize service');
+assert.match(dragText, /Never run[\s\S]*Ripple\/Overwrite after a trim\/rate gesture/i, 'resize must never invoke move placement policies');
+assert.match(dragText, /activeDrag\.dragMode === 'trim-left' \|\| activeDrag\.dragMode === 'trim-right' \|\| activeDrag\.dragMode === 'rate-stretch'/, 'all canonical resize modes must commit as geometry edits');
+console.log('PHASE51_TIMELINE_RESIZE_UNIVERSAL_CONTRACT=PASS');

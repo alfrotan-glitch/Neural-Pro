@@ -1,0 +1,12 @@
+const fs = require('fs');
+const path = require('path');
+const root = path.resolve(__dirname, '..');
+const source = fs.readFileSync(path.join(root, 'src/features/video-studio/playback/services/renderDiagnosticCausalGraph.ts'), 'utf8');
+const causality = fs.readFileSync(path.join(root, 'src/features/video-studio/playback/services/renderDiagnosticCausality.ts'), 'utf8');
+if (!source.includes('buildCausalDependencyGraph')) throw new Error('graph builder missing');
+if (!source.includes('firstFromFrame') || !source.includes('firstToFrame')) throw new Error('temporal edge evidence missing');
+if (!source.includes('strength')) throw new Error('edge strength missing');
+if (!source.includes('rootNodeId')) throw new Error('root node missing');
+if (!causality.includes('analyzeMismatchIncidentCausality')) throw new Error('canonical causality integration missing');
+if (!fs.readFileSync(path.join(root, 'src/features/video-studio/playback/services/index.ts'), 'utf8').includes("./renderDiagnosticCausalGraph")) throw new Error('service export missing');
+console.log('PHASE98_CAUSAL_DEPENDENCY_GRAPH = PASS');

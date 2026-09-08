@@ -1,0 +1,15 @@
+PHASE 13 CHANGE MANIFEST
+
+Modified:
+src/features/video-studio/playback/services/mediaTimeMapper.ts
+src/features/video-studio/playback/compositor/layerOrder.ts
+src/features/video-studio/playback/compositor/previewCompositorIndex.ts
+src/features/video-studio/audio/services/audioMixModel.ts
+src/features/video-studio/export/selectors/exportSelectors.ts
+tests/preview/preview-compositor-phase5.cjs
+
+Added:
+tests/phase13/frame-boundary-av-sync.cjs
+tests/phase13/runtime-av-boundaries.cjs
+tests/phase13/PHASE13_CHANGE_MANIFEST.txt
+PHASE_13_FRAME_ACCURATE_AV_SYNC.md

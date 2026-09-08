@@ -1,0 +1,12 @@
+const assert = require('assert');
+const fs = require('fs');
+const src = fs.readFileSync('src/features/video-studio/playback/services/mediaTimeMapper.ts','utf8');
+assert(src.includes('getClipSourceRange'));
+assert(src.includes('getClipSourceDuration'));
+assert(src.includes('getClipTimelineDurationFromSourceRange'));
+assert(src.includes('Math.min(sourceTime, end)'));
+assert(fs.readFileSync('src/components/player/VideoPlayer.tsx','utf8').includes('clipTrimOut={'));
+const sync = fs.readFileSync('src/features/video-studio/playback/services/mediaSyncController.ts','utf8');
+assert(sync.includes('boundedSourceTime'));
+assert(sync.includes('getClipSourceRange'));
+console.log('MEDIA_TIME_MAPPING_PHASE8=PASS');

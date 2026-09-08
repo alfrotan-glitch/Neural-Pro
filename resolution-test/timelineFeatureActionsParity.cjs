@@ -1,0 +1,10 @@
+const fs = require('fs');
+const path = require('path');
+const root = path.resolve(__dirname, '..');
+const service = fs.readFileSync(path.join(root, 'src/features/video-studio/timeline/services/timelineActionService.ts'), 'utf8');
+const timeline = fs.readFileSync(path.join(root, 'src/components/timeline/VirtualizedTimeline.tsx'), 'utf8');
+const requiredExports = ['toggleMirrored','toggleDeactivated','toggleVariableSpeedAnimation','separateAudioFromVideoAsync','recoverAudioFromVideoAsync','syncVideoAndAudio'];
+for (const name of requiredExports) if (!service.includes(`export ${name.includes('Async') ? 'async ' : ''}function ${name}`)) throw new Error(`Missing concrete Timeline action: ${name}`);
+for (const token of ['handleSeparateAudio();','handleSyncVideoAudio();','handleVariableSpeedAnimation();']) if (!timeline.includes(token)) throw new Error(`Timeline UI does not invoke concrete action: ${token}`);
+for (const token of ["dispatchTimelineAction('separate-audio'", "dispatchTimelineAction('sync-audio-video'", "dispatchTimelineAction('variable-speed'"]) if (timeline.includes(token)) throw new Error(`Timeline still uses request-only event path: ${token}`);
+console.log('TIMELINE_CONCRETE_ACTIONS=PASS');

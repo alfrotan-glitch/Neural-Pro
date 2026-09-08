@@ -1,0 +1,651 @@
+Video Studio Pro Max — Phase 9 Test Suite
+===========================================
+PHASE9_ARCHITECTURE=PASS
+[PASS] architecture
+PHASE6_COMMAND_BOUNDARIES=PASS
+[PASS] commands
+Stage 8 property history tests: PASS
+[PASS] history
+PHASE5_SELECTOR_BOUNDARIES=PASS
+[PASS] selectors
+PHASE4_SERVICE_BOUNDARIES=PASS
+[PASS] services
+Stage 4 bitrate model tests: PASS
+[PASS] bitrate
+Stage 9 duration tests: PASS
+[PASS] duration
+PASS: no per-frame media query
+PASS: audio routing has centralized controller
+PASS: no JSON deep clone in drag hot path
+PASS: lasso uses cached rects
+PASS: lasso mousemove is RAF scheduled
+[PASS] performance
+PASS: uses spawn instead of exec import
+PASS: uses spawn ffmpeg
+PASS: does not build an ffmpeg shell command string
+PASS: production export auth exists
+PASS: timing-safe token comparison exists
+PASS: session IDs are strict
+PASS: session TTL exists
+PASS: route-aware rate limits exist
+PASS: frame index is validated
+PASS: fps range is validated
+PASS: server format is whitelisted
+PASS: frame payload is decoded through strict data URL validation
+PASS: audio payload is decoded through strict data URL validation
+PASS: output size is capped
+Stage 12 security tests: PASS
+[PASS] security
+TIMELINE_SCREENSHOT_FEATURE_PARITY=PASS
+[PASS] timeline-screenshot-parity
+[PASS] blank click clears selection
+[PASS] locked clip remains selectable
+[PASS] selection happens before locked early-return
+[PASS] locked clip blocks modification
+[PASS] right click resolves clip selection
+TIMELINE_MOUSE_SELECTION=PASS
+[PASS] timeline-mouse-selection
+[PASS] central geometry service exists
+[PASS] surface width uses max content and viewport
+[PASS] workspace uses centralized timeToPixel
+[PASS] workspace uses centralized visible range
+[PASS] ruler uses centralized geometry
+[PASS] clip placement uses pixel geometry
+[PASS] clip width uses durationToPixels
+[PASS] main timeline imports geometry
+[PASS] main timeline no longer scales time by surface width
+[PASS] playhead converts pixel to time
+TIMELINE_GEOMETRY=PASS
+[PASS] timeline-geometry
+[PASS] track state command exists
+[PASS] track state command mutates Track model
+[PASS] store executes track state command
+[PASS] track state cache is derived after command
+[PASS] timeline invariants exist
+[PASS] project command does not depend on timeline feature
+[PASS] drag no longer writes tracks during pointer move
+[PASS] drag uses RAF draft flush
+[PASS] drag commits through command
+TIMELINE_ROOT_FIXES=PASS
+[PASS] timeline-root-fixes
+[PASS] track board has a virtual window model
+[PASS] track board computes track heights
+[PASS] track board uses binary search for first visible track
+[PASS] track board uses overscan
+[PASS] track board renders only the visible slice
+[PASS] track board preserves total scroll height with spacers
+[PASS] track board updates virtualization on workspace scroll
+[PASS] clip visibility remains time-window culled
+TIMELINE_VIRTUALIZATION=PASS
+[PASS] timeline-virtualization
+[PASS] clipboard model is defined
+[PASS] clipboard preserves relative timing
+[PASS] clipboard preserves source track mapping
+[PASS] clipboard captures immutable clip snapshots
+[PASS] pasted clips receive collision-safe IDs
+[PASS] clipboard supports multiple selected clips
+[PASS] paste preserves multi-clip relative offsets
+[PASS] paste refuses locked destination tracks
+TIMELINE_CLIPBOARD=PASS
+[PASS] timeline-clipboard
+TIMELINE_RIPPLE_OVERWRITE_ENGINE=PASS
+[PASS] timeline-ripple-overwrite
+TIMELINE_RIPPLE_OVERWRITE_RUNTIME=PASS
+[PASS] timeline-ripple-overwrite-runtime
+CAPTION_OVERLAY_PHASE6=PASS
+[PASS] caption-overlay-performance
+node:assert:801
+    throw err;
+    ^
+
+AssertionError [ERR_ASSERTION]: The input did not match the regular expression /const setVideoElement = useCallback/. Input:
+
+"import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';\n" +
+  "import { RealVideoElement } from '../../features/video-studio/playback/components/RealVideoElement';\n" +
+  "import { RealAudioElement } from '../../features/video-studio/playback/components/RealAudioElement';\n" +
+  "import { usePreviewTransformInteraction } from '../../features/video-studio/playback/hooks/usePreviewTransformInteraction';\n" +
+  "import { useProjectStore } from '../../store/useProjectStore';\n" +
+  "import { SubtitleRenderer } from './SubtitleRenderer';\n" +
+  "import { CyberpunkSubscribe } from './CyberpunkSubscribe';\n" +
+  "import { SubscribeTemplates } from './SubscribeTemplates';\n" +
+  "import { AudioWaveOverlay } from './AudioWaveOverlay';\n" +
+  "import { resolveClipSelection } from '../../features/video-studio/shared/services/selectionInteractionService';\n" +
+  "import { UpdateCyberpunkSubscribePropertiesCommand, type CyberpunkPropertySnapshot } from '../../features/video-studio/overlays/commands';\n" +
+  "import { normalizeCyberpunkSubscribeProperties, type CyberpunkSubscribeProperties } from '../../core/engine/cyberpunkSubscribeModel';\n" +
+  "import { useTransportTime } from '../../features/video-studio/playback/services/useTransportClock';\n" +
+  "import { attachFrameAccurateVideoClock } from '../../features/video-studio/playback/services/frameAccurateVideoClock';\n" +
+  "import type { MediaHealthSnapshot } from '../../features/video-studio/playback/services/mediaHealthController';\n" +
+  "import { getAudioMixController } from '../../features/video-studio/playback/audio';\n" +
+  "import { getClipPlaybackRate } from '../../features/video-studio/playback/services/mediaTimeMapper';\n" +
+  "import type { ClipNode, Track } from '../../features/video-studio/project/types/project';\n" +
+  'import { \n' +
+  '  Play, Pause, Square, SkipBack, SkipForward, \n' +
+  '  Grid3X3, Maximize2, Volume2, VolumeX \n' +
+  "} from 'lucide-react';\n" +
+  '\n' +
+  "import { buildPreviewCompositorIndex, selectActivePreviewCompositorPlan } from '../../features/video-studio/playback/compositor/previewCompositorIndex';\n" +
+  'interface VideoPlayerProps {\n' +
+  '  safeAreaGrid?: boolean;\n' +
+  '  initialScript?: any[];\n' +
+  '  isExporting?: boolean;\n' +
+  '}\n' +
+  '\n' +
+  'export const VideoPlayer: React.FC<VideoPlayerProps> = ({ safeAreaGrid = true, initialScript, isExporting = false }) => {\n' +
+  '  const { \n' +
+  '    isPlaying, \n' +
+  '    currentTime, \n' +
+  '    totalDuration, \n' +
+  '    tracks, \n' +
+  '    selectedNodeIds, \n' +
+  '    setSelectedNodeIds,\n' +
+  '    setCurrentTime, \n' +
+  '    setIsPlaying,\n' +
+  '    updateNodeProperty,\n' +
+  '    executeCommand,\n' +
+  '    hoverTime,\n' +
+  '    activeTool,\n' +
+  '    metadata\n' +
+  '  } = useProjectStore();\n' +
+  '\n' +
+  '  // Calculate actual end of project (max end time of any clip)\n' +
+  '  const clips = tracks.flatMap(t => t.clips);\n' +
+  '  const actualVideoDuration = totalDuration;\n' +
+  '  const projectFps = Number.isFinite(metadata?.fps) && metadata.fps > 0 ? metadata.fps : 30;\n' +
+  '\n' +
+  '  const containerRef = useRef<HTMLDivElement>(null);\n' +
+  '  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });\n' +
+  '\n' +
+  '  const {\n' +
+  '    hudRef,\n' +
+  '    isTransformDragging,\n' +
+  '    handleMoveMouseDown,\n' +
+  '    handleResizeMouseDown,\n' +
+  '    handleRotateMouseDown,\n' +
+  '    handleLineHeightMouseDown,\n' +
+  '    handleLetterSpacingMouseDown,\n' +
+  '  } = usePreviewTransformInteraction({\n' +
+  '    containerRef,\n' +
+  '    tracks,\n' +
+  '    selectedNodeIds,\n' +
+  '    executeCommand,\n' +
+  '  });\n' +
+  '\n' +
+  '  useEffect(() => {\n' +
+  '    const container = containerRef.current;\n' +
+  '    if (!container) return;\n' +
+  '\n' +
+  '    const resizeObserver = new ResizeObserver((entries) => {\n' +
+  '      if (!entries || entries.length === 0) return;\n' +
+  '      const { width, height } = entries[0].contentRect;\n' +
+  '      setContainerSize({ width, height });\n' +
+  '    });\n' +
+  '\n' +
+  '    resizeObserver.observe(container);\n' +
+  '    return () => {\n' +
+  '      resizeObserver.disconnect();\n' +
+  '    };\n' +
+  '  }, []);\n' +
+  '  \n' +
+  '  // New customization states\n' +
+  "  const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16' | '1:1' | '4:5'>('16:9');\n" +
+  '  const [showGrid, setShowGrid] = useState<boolean>(safeAreaGrid);\n' +
+  '  const [isMuted, setIsMuted] = useState<boolean>(false);\n' +
+  '  const [mediaHealth, setMediaHealth] = useState<Record<string, MediaHealthSnapshot>>({});\n' +
+  '  const [mediaReloadTokens, setMediaReloadTokens] = useState<Record<string, number>>({});\n' +
+  '  const videoElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());\n' +
+  '\n' +
+  '  const handleVideoElementReady = useCallback((clipId: string, element: HTMLVideoElement | null) => {\n' +
+  '    if (element) {\n' +
+  '      videoElementsRef.current.set(clipId, element);\n' +
+  '    } else {\n' +
+  '      videoElementsRef.current.delete(clipId);\n' +
+  '    }\n' +
+  '  }, []);\n' +
+  '\n' +
+  '  const handleMediaHealthChange = useCallback((clipId: string, snapshot: MediaHealthSnapshot) => {\n' +
+  '    setMediaHealth((previous) => {\n' +
+  '      if (previous[clipId]?.status === snapshot.status && previous[clipId]?.message === snapshot.message && previous[clipId]?.retryCount === snapshot.retryCount) {\n' +
+  '        return previous;\n' +
+  '      }\n' +
+  '      return { ...previous, [clipId]: snapshot };\n' +
+  '    });\n' +
+  '  }, []);\n' +
+  '\n' +
+  '  const retryMediaClip = useCallback((clipId: string) => {\n' +
+  '    setMediaReloadTokens((previous) => ({ ...previous, [clipId]: (previous[clipId] ?? 0) + 1 }));\n' +
+  '  }, []);\n' +
+  '\n' +
+  '  const canvasStyle = useMemo(() => {\n' +
+  '    if (containerSize.width === 0 || containerSize.height === 0) {\n' +
+  "      return { width: '100%', height: '100%' };\n" +
+  '    }\n' +
+  '\n' +
+  '    let ratio = 16 / 9;\n' +
+  "    if (aspectRatio === '9:16') ratio = 9 / 16;\n" +
+  "    else if (aspectRatio === '1:1') ratio = 1;\n" +
+  "    else if (aspectRatio === '4:5') ratio = 4 / 5;\n" +
+  '\n' +
+  '    const padding = 16;\n' +
+  '    const maxW = Math.max(0, containerSize.width - padding * 2);\n' +
+  '    const maxH = Math.max(0, containerSize.height - padding * 2);\n' +
+  '\n' +
+  '    let width = maxW;\n' +
+  '    let height = maxW / ratio;\n' +
+  '\n' +
+  '    if (height > maxH) {\n' +
+  '      height = maxH;\n' +
+  '      width = maxH * ratio;\n' +
+  '    }\n' +
+  '\n' +
+  '    return {\n' +
+  '      width: `${width}px`,\n' +
+  '      height: `${height}px`,\n' +
+  '    };\n' +
+  '  }, [containerSize, aspectRatio]);\n' +
+  '\n' +
+  '  // The actual time we are rendering. Usually currentTime, but can be hoverTime during scrub.\n' +
+  '  const transportTime = useTransportTime();\n' +
+  '  const activeTime = hoverTime !== null ? hoverTime : (isPlaying ? transportTime : currentTime);\n' +
+  '\n' +
+  '  // The preview owns one AudioMixController. Master mute is applied here; individual\n' +
+  '  // media elements register their clip/track gain and pan when mounted.\n' +
+  '  useEffect(() => {\n' +
+  '    const audioMix = getAudioMixController();\n' +
+  '    audioMix.setMasterMuted(isMuted || isExporting);\n' +
+  '  }, [isMuted, isExporting]);\n' +
+  '\n' +
+  '  // Selected clip lookup is project/selection driven, not transport-time driven.\n' +
+  '  const activeClip = useMemo(\n' +
+  '    () => tracks.flatMap(t => t.clips).find(c => c.id === selectedNodeIds[0]),\n' +
+  '    [tracks, selectedNodeIds],\n' +
+  '  );\n' +
+  '\n' +
+  '  // Build static compositor metadata only when the project tracks change.\n' +
+  '  // Active layers are then selected from that index for each playback time,\n' +
+  '  // avoiding a full track/clip traversal on every transport update.\n' +
+  '  const previewCompositorIndex = useMemo(\n' +
+  '    () => buildPreviewCompositorIndex(tracks),\n' +
+  '    [tracks],\n' +
+  '  );\n' +
+  '  const previewCompositorPlan = useMemo(\n' +
+  '    () => selectActivePreviewCompositorPlan(previewCompositorIndex, activeTime),\n' +
+  '    [previewCompositorIndex, activeTime],\n' +
+  '  );\n' +
+  '\n' +
+  '  const activeVideoLayers = previewCompositorPlan.byRole.video;\n' +
+  '  const activeTextLayers = previewCompositorPlan.byRole.text;\n' +
+  "  const activeAudioLayers = previewCompositorPlan.byRole['audio-visual'];\n" +
+  '  const activeEffectLayers = previewCompositorPlan.byRole.overlay;\n' +
+  '\n' +
+  '  const frameReferenceClip = activeVideoLayers[0]?.clip ?? null;\n' +
+  '\n' +
+  '  useEffect(() => {\n' +
+  '    if (!isPlaying || !frameReferenceClip) return;\n' +
+  '\n' +
+  '    const video = videoElementsRef.current.get(frameReferenceClip.id);\n' +
+  '    if (!video) return;\n' +
+  '\n' +
+  '    const cleanup = attachFrameAccurateVideoClock(\n' +
+  '      video,\n' +
+  '      frameReferenceClip,\n' +
+  '      isPlaying,\n' +
+  '      { correctionThresholdSeconds: 0.02 },\n' +
+  '    );\n' +
+  '\n' +
+  '    return cleanup ?? undefined;\n' +
+  '  }, [\n' +
+  '    frameReferenceClip?.id,\n' +
+  '    frameReferenceClip?.startAt,\n' +
+  '    frameReferenceClip?.duration,\n' +
+  '    frameReferenceClip?.trim?.in,\n' +
+  '    frameReferenceClip?.trim?.out,\n' +
+  '    frameReferenceClip?.properties.speed,\n' +
+  '    isPlaying,\n' +
+  '  ]);\n' +
+  '\n' +
+  '  const activeClipsAtTime = activeVideoLayers.map(layer => layer.clip);\n' +
+  '  const activeTextClips = activeTextLayers.map(layer => layer.clip);\n' +
+  '  const activeAudioClipsAtTime = activeAudioLayers.map(layer => layer.clip);\n' +
+  '  const activeEffectsClips = activeEffectLayers.map(layer => layer.clip);\n' +
+  '  const previewLayerByClipId = previewCompositorPlan.byClipId;\n' +
+  '\n' +
+  '\n' +
+  '\n' +
+  '  const activePreviewClips = useMemo(() => {\n' +
+  '    const seen = new Set<string>();\n' +
+  '    const result: any[] = [];\n' +
+  '    [...activeClipsAtTime, ...activeTextClips, ...activeEffectsClips, ...activeAudioClipsAtTime].forEach((clip) => {\n' +
+  '      if (!seen.has(clip.id)) {\n' +
+  '        seen.add(clip.id);\n' +
+  '        result.push(clip);\n' +
+  '      }\n' +
+  '    });\n' +
+  '    return result;\n' +
+  '  }, [activeClipsAtTime, activeTextClips, activeEffectsClips, activeAudioClipsAtTime]);\n' +
+  '\n' +
+  '  const findClipTrack = (clipId: string) =>\n' +
+  '    tracks.find((track) => track.clips.some((clip) => clip.id === clipId));\n' +
+  '\n' +
+  '  const handlePreviewClipMouseDown = (e: React.MouseEvent, clip: any) => {\n' +
+  '    if (e.button !== 0 && e.button !== 2) return;\n' +
+  '    const target = e.target as HTMLElement;\n' +
+  `    if (target.closest('button,input,textarea,select,[contenteditable="true"]')) return;\n` +
+  '\n' +
+  '    const nextSelection = resolveClipSelection({\n' +
+  '      selectedIds: selectedNodeIds,\n' +
+  '      allClips: activePreviewClips,\n' +
+  '      clickedClipId: clip.id,\n' +
+  '      ctrlKey: e.ctrlKey,\n' +
+  '      metaKey: e.metaKey,\n' +
+  '      shiftKey: e.shiftKey,\n' +
+  '      altKey: e.altKey,\n' +
+  '    });\n' +
+  '\n' +
+  '    setSelectedNodeIds(nextSelection);\n' +
+  '\n' +
+  '    if (e.button === 2) {\n' +
+  '      e.preventDefault();\n' +
+  '      return;\n' +
+  '    }\n' +
+  '\n' +
+  '    const clickedWasSelected = selectedNodeIds.includes(clip.id);\n' +
+  '    const subtractive = e.altKey || ((e.ctrlKey || e.metaKey) && clickedWasSelected);\n' +
+  '    const rangeSelection = e.shiftKey;\n' +
+  '    const track = findClipTrack(clip.id);\n' +
+  '    const locked = Boolean(track?.isLocked);\n' +
+  '\n' +
+  "    if (activeTool === 'select' && !locked && !subtractive && !rangeSelection && nextSelection.includes(clip.id)) {\n" +
+  '      handleMoveMouseDown(e, clip);\n' +
+  '    }\n' +
+  '  };\n' +
+  '\n' +
+  '  const handlePreviewBackgroundMouseDown = (e: React.MouseEvent) => {\n' +
+  '    if (e.button !== 0 || e.target !== e.currentTarget) return;\n' +
+  '    if (!e.ctrlKey &&'... 49168 more characters
+
+    at Object.<anonymous> (/mnt/data/phaseG_work/tests/phase10/frame-accurate-preview.cjs:25:8)
+    at Module._compile (node:internal/modules/cjs/loader:1730:14)
+    at Object..js (node:internal/modules/cjs/loader:1895:10)
+    at Module.load (node:internal/modules/cjs/loader:1465:32)
+    at Function._load (node:internal/modules/cjs/loader:1282:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
+    at node:internal/main/run_main_module:36:49 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: "import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';\n" +
+    "import { RealVideoElement } from '../../features/video-studio/playback/components/RealVideoElement';\n" +
+    "import { RealAudioElement } from '../../features/video-studio/playback/components/RealAudioElement';\n" +
+    "import { usePreviewTransformInteraction } from '../../features/video-studio/playback/hooks/usePreviewTransformInteraction';\n" +
+    "import { useProjectStore } from '../../store/useProjectStore';\n" +
+    "import { SubtitleRenderer } from './SubtitleRenderer';\n" +
+    "import { CyberpunkSubscribe } from './CyberpunkSubscribe';\n" +
+    "import { SubscribeTemplates } from './SubscribeTemplates';\n" +
+    "import { AudioWaveOverlay } from './AudioWaveOverlay';\n" +
+    "import { resolveClipSelection } from '../../features/video-studio/shared/services/selectionInteractionService';\n" +
+    "import { UpdateCyberpunkSubscribePropertiesCommand, type CyberpunkPropertySnapshot } from '../../features/video-studio/overlays/commands';\n" +
+    "import { normalizeCyberpunkSubscribeProperties, type CyberpunkSubscribeProperties } from '../../core/engine/cyberpunkSubscribeModel';\n" +
+    "import { useTransportTime } from '../../features/video-studio/playback/services/useTransportClock';\n" +
+    "import { attachFrameAccurateVideoClock } from '../../features/video-studio/playback/services/frameAccurateVideoClock';\n" +
+    "import type { MediaHealthSnapshot } from '../../features/video-studio/playback/services/mediaHealthController';\n" +
+    "import { getAudioMixController } from '../../features/video-studio/playback/audio';\n" +
+    "import { getClipPlaybackRate } from '../../features/video-studio/playback/services/mediaTimeMapper';\n" +
+    "import type { ClipNode, Track } from '../../features/video-studio/project/types/project';\n" +
+    'import { \n' +
+    '  Play, Pause, Square, SkipBack, SkipForward, \n' +
+    '  Grid3X3, Maximize2, Volume2, VolumeX \n' +
+    "} from 'lucide-react';\n" +
+    '\n' +
+    "import { buildPreviewCompositorIndex, selectActivePreviewCompositorPlan } from '../../features/video-studio/playback/compositor/previewCompositorIndex';\n" +
+    'interface VideoPlayerProps {\n' +
+    '  safeAreaGrid?: boolean;\n' +
+    '  initialScript?: any[];\n' +
+    '  isExporting?: boolean;\n' +
+    '}\n' +
+    '\n' +
+    'export const VideoPlayer: React.FC<VideoPlayerProps> = ({ safeAreaGrid = true, initialScript, isExporting = false }) => {\n' +
+    '  const { \n' +
+    '    isPlaying, \n' +
+    '    currentTime, \n' +
+    '    totalDuration, \n' +
+    '    tracks, \n' +
+    '    selectedNodeIds, \n' +
+    '    setSelectedNodeIds,\n' +
+    '    setCurrentTime, \n' +
+    '    setIsPlaying,\n' +
+    '    updateNodeProperty,\n' +
+    '    executeCommand,\n' +
+    '    hoverTime,\n' +
+    '    activeTool,\n' +
+    '    metadata\n' +
+    '  } = useProjectStore();\n' +
+    '\n' +
+    '  // Calculate actual end of project (max end time of any clip)\n' +
+    '  const clips = tracks.flatMap(t => t.clips);\n' +
+    '  const actualVideoDuration = totalDuration;\n' +
+    '  const projectFps = Number.isFinite(metadata?.fps) && metadata.fps > 0 ? metadata.fps : 30;\n' +
+    '\n' +
+    '  const containerRef = useRef<HTMLDivElement>(null);\n' +
+    '  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });\n' +
+    '\n' +
+    '  const {\n' +
+    '    hudRef,\n' +
+    '    isTransformDragging,\n' +
+    '    handleMoveMouseDown,\n' +
+    '    handleResizeMouseDown,\n' +
+    '    handleRotateMouseDown,\n' +
+    '    handleLineHeightMouseDown,\n' +
+    '    handleLetterSpacingMouseDown,\n' +
+    '  } = usePreviewTransformInteraction({\n' +
+    '    containerRef,\n' +
+    '    tracks,\n' +
+    '    selectedNodeIds,\n' +
+    '    executeCommand,\n' +
+    '  });\n' +
+    '\n' +
+    '  useEffect(() => {\n' +
+    '    const container = containerRef.current;\n' +
+    '    if (!container) return;\n' +
+    '\n' +
+    '    const resizeObserver = new ResizeObserver((entries) => {\n' +
+    '      if (!entries || entries.length === 0) return;\n' +
+    '      const { width, height } = entries[0].contentRect;\n' +
+    '      setContainerSize({ width, height });\n' +
+    '    });\n' +
+    '\n' +
+    '    resizeObserver.observe(container);\n' +
+    '    return () => {\n' +
+    '      resizeObserver.disconnect();\n' +
+    '    };\n' +
+    '  }, []);\n' +
+    '  \n' +
+    '  // New customization states\n' +
+    "  const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16' | '1:1' | '4:5'>('16:9');\n" +
+    '  const [showGrid, setShowGrid] = useState<boolean>(safeAreaGrid);\n' +
+    '  const [isMuted, setIsMuted] = useState<boolean>(false);\n' +
+    '  const [mediaHealth, setMediaHealth] = useState<Record<string, MediaHealthSnapshot>>({});\n' +
+    '  const [mediaReloadTokens, setMediaReloadTokens] = useState<Record<string, number>>({});\n' +
+    '  const videoElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());\n' +
+    '\n' +
+    '  const handleVideoElementReady = useCallback((clipId: string, element: HTMLVideoElement | null) => {\n' +
+    '    if (element) {\n' +
+    '      videoElementsRef.current.set(clipId, element);\n' +
+    '    } else {\n' +
+    '      videoElementsRef.current.delete(clipId);\n' +
+    '    }\n' +
+    '  }, []);\n' +
+    '\n' +
+    '  const handleMediaHealthChange = useCallback((clipId: string, snapshot: MediaHealthSnapshot) => {\n' +
+    '    setMediaHealth((previous) => {\n' +
+    '      if (previous[clipId]?.status === snapshot.status && previous[clipId]?.message === snapshot.message && previous[clipId]?.retryCount === snapshot.retryCount) {\n' +
+    '        return previous;\n' +
+    '      }\n' +
+    '      return { ...previous, [clipId]: snapshot };\n' +
+    '    });\n' +
+    '  }, []);\n' +
+    '\n' +
+    '  const retryMediaClip = useCallback((clipId: string) => {\n' +
+    '    setMediaReloadTokens((previous) => ({ ...previous, [clipId]: (previous[clipId] ?? 0) + 1 }));\n' +
+    '  }, []);\n' +
+    '\n' +
+    '  const canvasStyle = useMemo(() => {\n' +
+    '    if (containerSize.width === 0 || containerSize.height === 0) {\n' +
+    "      return { width: '100%', height: '100%' };\n" +
+    '    }\n' +
+    '\n' +
+    '    let ratio = 16 / 9;\n' +
+    "    if (aspectRatio === '9:16') ratio = 9 / 16;\n" +
+    "    else if (aspectRatio === '1:1') ratio = 1;\n" +
+    "    else if (aspectRatio === '4:5') ratio = 4 / 5;\n" +
+    '\n' +
+    '    const padding = 16;\n' +
+    '    const maxW = Math.max(0, containerSize.width - padding * 2);\n' +
+    '    const maxH = Math.max(0, containerSize.height - padding * 2);\n' +
+    '\n' +
+    '    let width = maxW;\n' +
+    '    let height = maxW / ratio;\n' +
+    '\n' +
+    '    if (height > maxH) {\n' +
+    '      height = maxH;\n' +
+    '      width = maxH * ratio;\n' +
+    '    }\n' +
+    '\n' +
+    '    return {\n' +
+    '      width: `${width}px`,\n' +
+    '      height: `${height}px`,\n' +
+    '    };\n' +
+    '  }, [containerSize, aspectRatio]);\n' +
+    '\n' +
+    '  // The actual time we are rendering. Usually currentTime, but can be hoverTime during scrub.\n' +
+    '  const transportTime = useTransportTime();\n' +
+    '  const activeTime = hoverTime !== null ? hoverTime : (isPlaying ? transportTime : currentTime);\n' +
+    '\n' +
+    '  // The preview owns one AudioMixController. Master mute is applied here; individual\n' +
+    '  // media elements register their clip/track gain and pan when mounted.\n' +
+    '  useEffect(() => {\n' +
+    '    const audioMix = getAudioMixController();\n' +
+    '    audioMix.setMasterMuted(isMuted || isExporting);\n' +
+    '  }, [isMuted, isExporting]);\n' +
+    '\n' +
+    '  // Selected clip lookup is project/selection driven, not transport-time driven.\n' +
+    '  const activeClip = useMemo(\n' +
+    '    () => tracks.flatMap(t => t.clips).find(c => c.id === selectedNodeIds[0]),\n' +
+    '    [tracks, selectedNodeIds],\n' +
+    '  );\n' +
+    '\n' +
+    '  // Build static compositor metadata only when the project tracks change.\n' +
+    '  // Active layers are then selected from that index for each playback time,\n' +
+    '  // avoiding a full track/clip traversal on every transport update.\n' +
+    '  const previewCompositorIndex = useMemo(\n' +
+    '    () => buildPreviewCompositorIndex(tracks),\n' +
+    '    [tracks],\n' +
+    '  );\n' +
+    '  const previewCompositorPlan = useMemo(\n' +
+    '    () => selectActivePreviewCompositorPlan(previewCompositorIndex, activeTime),\n' +
+    '    [previewCompositorIndex, activeTime],\n' +
+    '  );\n' +
+    '\n' +
+    '  const activeVideoLayers = previewCompositorPlan.byRole.video;\n' +
+    '  const activeTextLayers = previewCompositorPlan.byRole.text;\n' +
+    "  const activeAudioLayers = previewCompositorPlan.byRole['audio-visual'];\n" +
+    '  const activeEffectLayers = previewCompositorPlan.byRole.overlay;\n' +
+    '\n' +
+    '  const frameReferenceClip = activeVideoLayers[0]?.clip ?? null;\n' +
+    '\n' +
+    '  useEffect(() => {\n' +
+    '    if (!isPlaying || !frameReferenceClip) return;\n' +
+    '\n' +
+    '    const video = videoElementsRef.current.get(frameReferenceClip.id);\n' +
+    '    if (!video) return;\n' +
+    '\n' +
+    '    const cleanup = attachFrameAccurateVideoClock(\n' +
+    '      video,\n' +
+    '      frameReferenceClip,\n' +
+    '      isPlaying,\n' +
+    '      { correctionThresholdSeconds: 0.02 },\n' +
+    '    );\n' +
+    '\n' +
+    '    return cleanup ?? undefined;\n' +
+    '  }, [\n' +
+    '    frameReferenceClip?.id,\n' +
+    '    frameReferenceClip?.startAt,\n' +
+    '    frameReferenceClip?.duration,\n' +
+    '    frameReferenceClip?.trim?.in,\n' +
+    '    frameReferenceClip?.trim?.out,\n' +
+    '    frameReferenceClip?.properties.speed,\n' +
+    '    isPlaying,\n' +
+    '  ]);\n' +
+    '\n' +
+    '  const activeClipsAtTime = activeVideoLayers.map(layer => layer.clip);\n' +
+    '  const activeTextClips = activeTextLayers.map(layer => layer.clip);\n' +
+    '  const activeAudioClipsAtTime = activeAudioLayers.map(layer => layer.clip);\n' +
+    '  const activeEffectsClips = activeEffectLayers.map(layer => layer.clip);\n' +
+    '  const previewLayerByClipId = previewCompositorPlan.byClipId;\n' +
+    '\n' +
+    '\n' +
+    '\n' +
+    '  const activePreviewClips = useMemo(() => {\n' +
+    '    const seen = new Set<string>();\n' +
+    '    const result: any[] = [];\n' +
+    '    [...activeClipsAtTime, ...activeTextClips, ...activeEffectsClips, ...activeAudioClipsAtTime].forEach((clip) => {\n' +
+    '      if (!seen.has(clip.id)) {\n' +
+    '        seen.add(clip.id);\n' +
+    '        result.push(clip);\n' +
+    '      }\n' +
+    '    });\n' +
+    '    return result;\n' +
+    '  }, [activeClipsAtTime, activeTextClips, activeEffectsClips, activeAudioClipsAtTime]);\n' +
+    '\n' +
+    '  const findClipTrack = (clipId: string) =>\n' +
+    '    tracks.find((track) => track.clips.some((clip) => clip.id === clipId));\n' +
+    '\n' +
+    '  const handlePreviewClipMouseDown = (e: React.MouseEvent, clip: any) => {\n' +
+    '    if (e.button !== 0 && e.button !== 2) return;\n' +
+    '    const target = e.target as HTMLElement;\n' +
+    `    if (target.closest('button,input,textarea,select,[contenteditable="true"]')) return;\n` +
+    '\n' +
+    '    const nextSelection = resolveClipSelection({\n' +
+    '      selectedIds: selectedNodeIds,\n' +
+    '      allClips: activePreviewClips,\n' +
+    '      clickedClipId: clip.id,\n' +
+    '      ctrlKey: e.ctrlKey,\n' +
+    '      metaKey: e.metaKey,\n' +
+    '      shiftKey: e.shiftKey,\n' +
+    '      altKey: e.altKey,\n' +
+    '    });\n' +
+    '\n' +
+    '    setSelectedNodeIds(nextSelection);\n' +
+    '\n' +
+    '    if (e.button === 2) {\n' +
+    '      e.preventDefault();\n' +
+    '      return;\n' +
+    '    }\n' +
+    '\n' +
+    '    const clickedWasSelected = selectedNodeIds.includes(clip.id);\n' +
+    '    const subtractive = e.altKey || ((e.ctrlKey || e.metaKey) && clickedWasSelected);\n' +
+    '    const rangeSelection = e.shiftKey;\n' +
+    '    const track = findClipTrack(clip.id);\n' +
+    '    const locked = Boolean(track?.isLocked);\n' +
+    '\n' +
+    "    if (activeTool === 'select' && !locked && !subtractive && !rangeSelection && nextSelection.includes(clip.id)) {\n" +
+    '      handleMoveMouseDown(e, clip);\n' +
+    '    }\n' +
+    '  };\n' +
+    '\n' +
+    '  const handlePreviewBackgroundMouseDown = (e: React.MouseEvent) => {\n' +
+    '    if (e.button !== 0 || e.target !== e.currentTarget) return;\n' +
+    '    if (!e.ctrlKey &&'... 49168 more characters,
+  expected: /const setVideoElement = useCallback/,
+  operator: 'match'
+}
+
+Node.js v22.16.0
+[FAIL] frame-accurate-preview
+PHASE_C_COMMAND_BOUNDARY=PASS
+direct project track mutations in UI/features = 0
+hydration-only track loading preserved
+snapshot command boundary present
+[PASS] phaseC-command-boundary
+-------------------------------------------
+PHASE9_TEST_SUITE=FAIL (1 suite)

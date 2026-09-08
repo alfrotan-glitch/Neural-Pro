@@ -1,0 +1,15 @@
+const fs = require('fs');
+const path = require('path');
+const root = path.resolve(__dirname, '../..');
+const curve = fs.readFileSync(path.join(root, 'src/features/video-studio/timeline/components/AnimationCurveEditor.tsx'), 'utf8');
+const commands = fs.readFileSync(path.join(root, 'src/features/video-studio/animation/keyframeCommands.ts'), 'utf8');
+const must = (text, needle, label) => { if (!text.includes(needle)) throw new Error(label); };
+must(curve, 'data-curve-graph="multi-property"', 'multi-keyframe graph contract missing');
+must(curve, 'arr.slice(0,-1)', 'graph must render multiple segments');
+must(curve, 'beginNode=', 'graph must expose selectable nodes');
+must(curve, 'onWheel=', 'graph zoom missing');
+must(curve, 'setPan', 'graph pan state missing');
+must(curve, 'MoveAnimationKeyframeWithValueCommand', 'node time/value change must use atomic command');
+must(commands, "name = 'Move Animation Keyframe Value'", 'atomic time/value command missing');
+must(commands, 'generateUUID()', 'commands must use canonical uuid generator');
+console.log('PHASE67_MULTI_KEYFRAME_GRAPH_EDITOR = PASS');

@@ -1,0 +1,24 @@
+const fs=require('fs'), path=require('path');
+const root=path.resolve(__dirname,'..');
+const hook=fs.readFileSync(path.join(root,'src/features/video-studio/timeline/controllers/useTimelineClipInteraction.ts'),'utf8');
+const exec=fs.readFileSync(path.join(root,'src/features/video-studio/timeline/controllers/useTimelineDragExecution.ts'),'utf8');
+const type=fs.readFileSync(path.join(root,'src/features/video-studio/timeline/components/timelineInteractionTypes.ts'),'utf8');
+const clip=fs.readFileSync(path.join(root,'src/features/video-studio/timeline/components/TimelineClip.tsx'),'utf8');
+const errors=[]; const ok=(x,m)=>{if(!x)errors.push(m)};
+const handlerStart=hook.indexOf('const handleClipMouseDown'); const arm=hook.indexOf('armPendingDrag({',handlerStart); const handler=hook.slice(handlerStart,arm);
+ok(handler.includes('setSelectedNodeIds(nextSelection)'), 'click must select before pending interaction');
+ok(!handler.includes('setActiveDrag('), 'clip pointerdown must not activate drag directly');
+ok(!handler.includes('structuredClone(tracks)'), 'clip pointerdown must not clone full timeline');
+ok(!handler.includes('dragMode:'), 'drag mode must not be fixed before movement threshold');
+ok(hook.includes('DRAG_THRESHOLD_PX = 8'), 'drag threshold must be 8px');
+ok(hook.includes('createActiveDrag(current, moveEvent.clientX)'), 'threshold crossing must promote pending interaction');
+ok(hook.includes('pointerId: pending.pointerId'), 'active drag must preserve pointer identity');
+ok(type.includes('pointerId: number'), 'ActiveDrag must include pointer identity');
+ok(exec.includes("window.addEventListener('pointermove'"), 'active drag must use pointermove');
+ok(exec.includes("window.addEventListener('pointerup'"), 'active drag must use pointerup');
+ok(exec.includes("window.addEventListener('pointercancel'"), 'active drag must cancel on pointercancel');
+ok(exec.includes('e.pointerId !== activeDrag.pointerId'), 'active drag must ignore unrelated pointers');
+ok(clip.includes('onPointerDown={(event) => handleClipMouseDown'), 'clip must use pointerdown');
+ok(clip.includes('onPointerDown={(event) => event.stopPropagation()}'), 'text editor pointerdown must not bubble into clip interaction');
+if(errors.length){console.error('TIMELINE_CLICK_DRAG_CONTRACT=FAIL'); errors.forEach(e=>console.error(' - '+e)); process.exit(1)}
+console.log('TIMELINE_CLICK_DRAG_CONTRACT=PASS');

@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true
+  },
+  "files": [
+    "src/lib/uuid.ts",
+    "src/features/video-studio/shared/types/identity.ts",
+    "src/features/video-studio/canvas/types/canvas.ts",
+    "src/features/video-studio/media/types/media.ts",
+    "src/features/video-studio/timeline/types/timeline.ts",
+    "src/features/video-studio/captions/types/caption.ts",
+    "src/features/video-studio/audio/types/audio.ts",
+    "src/features/video-studio/animation/types/animation.ts",
+    "src/features/video-studio/project/types/project.ts",
+    "src/features/video-studio/project/validation/timelineInvariants.ts",
+    "src/features/video-studio/project/commands/updateClipPropertiesCommand.ts",
+    "src/features/video-studio/project/commands/trackSnapshotCommand.ts",
+    "src/features/video-studio/project/commands/updateTrackStateCommand.ts",
+    "src/features/video-studio/timeline/commands/clipCommands.ts",
+    "src/features/video-studio/overlays/commands/updateCyberpunkSubscribePropertiesCommand.ts",
+    "src/features/video-studio/project/services/projectService.ts"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "baseline_files": 485,
+  "current_files": 486,
+  "missing": [],
+  "added": [
+    "tests/phase65-bezier-curve-integrity.cjs"
+  ],
+  "changed": [
+    "src/features/video-studio/animation/commands.ts",
+    "src/features/video-studio/animation/keyframeClipboardCommands.ts",
+    "src/features/video-studio/animation/keyframeCommands.ts",
+    "src/features/video-studio/animation/services.ts",
+    "src/features/video-studio/animation/types/animation.ts",
+    "src/features/video-studio/timeline/components/TimelineAnimationMarkers.tsx"
+  ]
+}

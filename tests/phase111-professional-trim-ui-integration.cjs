@@ -1,0 +1,28 @@
+const fs = require('fs');
+const path = require('path');
+const root = path.resolve(__dirname, '..');
+const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
+function fail(message) { console.error(`PHASE111_PROFESSIONAL_TRIM_UI_INTEGRATION = FAIL: ${message}`); process.exit(1); }
+const toolbar = read('src/features/video-studio/timeline/components/TimelineToolbar.tsx');
+const clip = read('src/features/video-studio/timeline/components/TimelineClip.tsx');
+const interaction = read('src/features/video-studio/timeline/controllers/useTimelineClipInteraction.ts');
+const drag = read('src/features/video-studio/timeline/controllers/useTimelineDragExecution.ts');
+const workspace = read('src/features/video-studio/timeline/components/TimelineWorkspace.tsx');
+const row = read('src/features/video-studio/timeline/components/TimelineTrackRow.tsx');
+const board = read('src/features/video-studio/timeline/components/TimelineTrackBoard.tsx');
+const virtualized = read('src/components/timeline/VirtualizedTimeline.tsx');
+const active = read('src/features/video-studio/timeline/components/timelineInteractionTypes.ts');
+if (!toolbar.includes("professionalTrimTool?: 'none' | 'roll' | 'slip'")) fail('Toolbar must expose professional trim state.');
+if (!toolbar.includes("setProfessionalTrimTool('roll')") || !toolbar.includes("setProfessionalTrimTool('slip')")) fail('Toolbar must expose Roll and Slip tools.');
+if (!clip.includes("professionalTrimTool === 'roll' ? 'roll-left' : 'trim-left'")) fail('Left edge must route to Roll-left when Roll tool is active.');
+if (!clip.includes("professionalTrimTool === 'roll' ? 'roll-right' : 'trim-right'")) fail('Right edge must route to Roll-right when Roll tool is active.');
+if (!interaction.includes("requestedDragMode === 'roll-left' || requestedDragMode === 'roll-right'")) fail('Interaction controller must recognize explicit Roll edge intent.');
+if (!interaction.includes("professionalTrimTool === 'slip'")) fail('Interaction controller must recognize Slip tool.');
+if (!drag.includes('applyRollEdit') || !drag.includes('applySlipEdit')) fail('Drag execution must use canonical Roll/Slip services.');
+if (!drag.includes("activeDrag.dragMode === 'roll'") || !drag.includes("activeDrag.dragMode === 'slip'")) fail('Roll/Slip drag branches must be present.');
+if (!active.includes("'roll-left' | 'roll-right'") || !active.includes('pairedClipId')) fail('ActiveDrag must preserve Roll edge and paired clip identity.');
+if (!workspace.includes('professionalTrimTool={professionalTrimTool}')) fail('Workspace must forward professional trim tool state.');
+if (!row.includes('professionalTrimTool={professionalTrimTool}')) fail('Track row must forward professional trim tool state.');
+if (!board.includes('professionalTrimTool={professionalTrimTool}')) fail('Track board must forward professional trim tool state.');
+if (!virtualized.includes("useState<'none' | 'roll' | 'slip'>('none')")) fail('VirtualizedTimeline must own explicit professional trim UI state.');
+console.log('PHASE111_PROFESSIONAL_TRIM_UI_INTEGRATION = PASS');

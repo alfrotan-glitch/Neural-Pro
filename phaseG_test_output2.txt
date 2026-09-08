@@ -1,0 +1,105 @@
+Video Studio Pro Max — Phase 9 Test Suite
+===========================================
+PHASE9_ARCHITECTURE=PASS
+[PASS] architecture
+PHASE6_COMMAND_BOUNDARIES=PASS
+[PASS] commands
+Stage 8 property history tests: PASS
+[PASS] history
+PHASE5_SELECTOR_BOUNDARIES=PASS
+[PASS] selectors
+PHASE4_SERVICE_BOUNDARIES=PASS
+[PASS] services
+Stage 4 bitrate model tests: PASS
+[PASS] bitrate
+Stage 9 duration tests: PASS
+[PASS] duration
+PASS: no per-frame media query
+PASS: audio routing has centralized controller
+PASS: no JSON deep clone in drag hot path
+PASS: lasso uses cached rects
+PASS: lasso mousemove is RAF scheduled
+[PASS] performance
+PASS: uses spawn instead of exec import
+PASS: uses spawn ffmpeg
+PASS: does not build an ffmpeg shell command string
+PASS: production export auth exists
+PASS: timing-safe token comparison exists
+PASS: session IDs are strict
+PASS: session TTL exists
+PASS: route-aware rate limits exist
+PASS: frame index is validated
+PASS: fps range is validated
+PASS: server format is whitelisted
+PASS: frame payload is decoded through strict data URL validation
+PASS: audio payload is decoded through strict data URL validation
+PASS: output size is capped
+Stage 12 security tests: PASS
+[PASS] security
+TIMELINE_SCREENSHOT_FEATURE_PARITY=PASS
+[PASS] timeline-screenshot-parity
+[PASS] blank click clears selection
+[PASS] locked clip remains selectable
+[PASS] selection happens before locked early-return
+[PASS] locked clip blocks modification
+[PASS] right click resolves clip selection
+TIMELINE_MOUSE_SELECTION=PASS
+[PASS] timeline-mouse-selection
+[PASS] central geometry service exists
+[PASS] surface width uses max content and viewport
+[PASS] workspace uses centralized timeToPixel
+[PASS] workspace uses centralized visible range
+[PASS] ruler uses centralized geometry
+[PASS] clip placement uses pixel geometry
+[PASS] clip width uses durationToPixels
+[PASS] main timeline imports geometry
+[PASS] main timeline no longer scales time by surface width
+[PASS] playhead converts pixel to time
+TIMELINE_GEOMETRY=PASS
+[PASS] timeline-geometry
+[PASS] track state command exists
+[PASS] track state command mutates Track model
+[PASS] store executes track state command
+[PASS] track state cache is derived after command
+[PASS] timeline invariants exist
+[PASS] project command does not depend on timeline feature
+[PASS] drag no longer writes tracks during pointer move
+[PASS] drag uses RAF draft flush
+[PASS] drag commits through command
+TIMELINE_ROOT_FIXES=PASS
+[PASS] timeline-root-fixes
+[PASS] track board has a virtual window model
+[PASS] track board computes track heights
+[PASS] track board uses binary search for first visible track
+[PASS] track board uses overscan
+[PASS] track board renders only the visible slice
+[PASS] track board preserves total scroll height with spacers
+[PASS] track board updates virtualization on workspace scroll
+[PASS] clip visibility remains time-window culled
+TIMELINE_VIRTUALIZATION=PASS
+[PASS] timeline-virtualization
+[PASS] clipboard model is defined
+[PASS] clipboard preserves relative timing
+[PASS] clipboard preserves source track mapping
+[PASS] clipboard captures immutable clip snapshots
+[PASS] pasted clips receive collision-safe IDs
+[PASS] clipboard supports multiple selected clips
+[PASS] paste preserves multi-clip relative offsets
+[PASS] paste refuses locked destination tracks
+TIMELINE_CLIPBOARD=PASS
+[PASS] timeline-clipboard
+TIMELINE_RIPPLE_OVERWRITE_ENGINE=PASS
+[PASS] timeline-ripple-overwrite
+TIMELINE_RIPPLE_OVERWRITE_RUNTIME=PASS
+[PASS] timeline-ripple-overwrite-runtime
+CAPTION_OVERLAY_PHASE6=PASS
+[PASS] caption-overlay-performance
+FRAME_ACCURATE_PREVIEW=PASS
+[PASS] frame-accurate-preview
+PHASE_C_COMMAND_BOUNDARY=PASS
+direct project track mutations in UI/features = 0
+hydration-only track loading preserved
+snapshot command boundary present
+[PASS] phaseC-command-boundary
+-------------------------------------------
+PHASE9_TEST_SUITE=PASS

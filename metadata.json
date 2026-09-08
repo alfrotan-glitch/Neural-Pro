@@ -1,0 +1,6 @@
+{
+  "name": "NeuralPodcast PRO",
+  "description": "AI podcast script generator, dynamic voice synthesis studio, video studio, and YouTube subscribe animation generator.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

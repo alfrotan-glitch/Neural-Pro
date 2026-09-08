@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Video Studio Runtime Smoke Test</title>
+<style>
+  #pointer-target { width: 120px; height: 60px; }
+</style>
+</head>
+<body>
+<div id="pointer-target"></div>
+<canvas id="canvas" width="16" height="16"></canvas>
+<pre id="result"></pre>
+<script>
+(async () => {
+  const results = [];
+  const pass = (name, ok, detail = '') => results.push({name, ok, detail});
+
+  pass('DOM boots', !!document.getElementById('pointer-target'));
+  pass('Canvas 2D', !!document.getElementById('canvas').getContext('2d'));
+  pass('PointerEvent', 'PointerEvent' in window);
+  pass('requestAnimationFrame', 'requestAnimationFrame' in window);
+  pass('requestVideoFrameCallback', 'requestVideoFrameCallback' in HTMLVideoElement.prototype);
+  pass('OffscreenCanvas', 'OffscreenCanvas' in window);
+  pass('WebCodecs.VideoDecoder', 'VideoDecoder' in window);
+  pass('WebCodecs.VideoEncoder', 'VideoEncoder' in window);
+  pass('AudioContext', 'AudioContext' in window || 'webkitAudioContext' in window);
+
+  let pointerDown = false;
+  let pointerUp = false;
+  const target = document.getElementById('pointer-target');
+  target.addEventListener('pointerdown', () => { pointerDown = true; });
+  target.addEventListener('pointerup', () => { pointerUp = true; });
+  target.dispatchEvent(new PointerEvent('pointerdown', {bubbles:true, pointerId: 7}));
+  target.dispatchEvent(new PointerEvent('pointerup', {bubbles:true, pointerId: 7}));
+  pass('Pointer event delivery', pointerDown && pointerUp);
+
+  document.getElementById('result').textContent = JSON.stringify({
+    userAgent: navigator.userAgent,
+    results,
+    allRequiredEnvironmentAPIsAvailable: results
+      .filter(x => ['DOM boots','Canvas 2D','PointerEvent','requestAnimationFrame'].includes(x.name))
+      .every(x => x.ok)
+  }, null, 2);
+})();
+</script>
+</body>
+</html>
