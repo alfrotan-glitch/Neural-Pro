@@ -1,7 +1,18 @@
 const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
-const ts = require('/opt/nvm/versions/node/v22.16.0/lib/node_modules/typescript/lib/typescript.js');
+const ts = require('typescript');
+
+const { createRequire } = require('node:module');
+
+require.extensions['.ts'] = function(module, filename) {
+  const source = fs.readFileSync(filename, 'utf8');
+  const output = ts.transpileModule(source, {
+    compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS },
+    fileName: filename,
+  }).outputText;
+  module._compile(output, filename);
+};
 
 const root = path.resolve(__dirname, '..');
 function loadTs(relative) {
@@ -13,11 +24,12 @@ function loadTs(relative) {
   }).outputText;
   const wrapped = `(function(require,module,exports,__filename,__dirname){${transpiled}\n})`;
   const moduleObj = { exports: {} };
+  const req = createRequire(filename);
   const localRequire = (request) => {
     if (request.endsWith('../../../../lib/uuid')) {
       return { generateUUID: () => `test-${Math.random().toString(36).slice(2)}` };
     }
-    return require(request);
+    return req(request);
   };
   // Only the service is exercised here. Project type imports are erased by transpilation.
   new Function('require','module','exports','__filename','__dirname', wrapped.slice(wrapped.indexOf('{') + 1, -2))(localRequire, moduleObj, moduleObj.exports, filename, path.dirname(filename));

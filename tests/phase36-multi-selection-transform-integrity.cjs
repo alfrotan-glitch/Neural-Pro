@@ -6,7 +6,7 @@ const hook = fs.readFileSync(path.join(root,'src/features/video-studio/playback/
 const checks = [
   ['multi-selection resize path enabled', /editableClipIds\.size > 1/.test(hook)],
   ['multi-selection rotation path enabled', /applyRotationToClips\([\s\S]*editableClipIds\.size > 1/.test(hook)],
-  ['group resize scales relative offsets', /\(original\.transform\.x - groupCenterX\) \* scaleRatio/.test(service)],
+  ['group resize scales relative offsets', /\(original\.transform\.x - groupCenterX\) \* (scaleRatio|geometryScaleXRatio)/.test(service)],
   ['group rotation rotates relative offsets', /\(original\.transform\.x - groupCenterX\) \* cos/.test(service)],
   ['group rotation preserves each local rotation plus delta', /rotation: normalizeRotation\(\(original\.transform\.rotation \|\| 0\) \+ delta\)/.test(service)],
 ];

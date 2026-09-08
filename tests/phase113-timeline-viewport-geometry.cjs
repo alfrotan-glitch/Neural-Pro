@@ -1,6 +1,6 @@
 const fs = require('fs');
 const vm = require('vm');
-const ts = require('/opt/nvm/versions/node/v22.16.0/lib/node_modules/typescript/lib/typescript.js');
+const ts = require('typescript');
 const path = require('path');
 
 function loadModule(rel, injected = {}) {

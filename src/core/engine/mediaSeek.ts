@@ -35,7 +35,7 @@ export function seekMediaElement(
 
   return new Promise<void>((resolve, reject) => {
     let settled = false;
-    let timeoutId: number | undefined;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
     const cleanup = () => {
       media.removeEventListener('seeked', onSeeked);
@@ -43,7 +43,7 @@ export function seekMediaElement(
       media.removeEventListener('loadeddata', onLoadedData);
       signal?.removeEventListener('abort', onAbort);
       if (timeoutId !== undefined) {
-        window.clearTimeout(timeoutId);
+        globalThis.clearTimeout(timeoutId);
       }
     };
 
@@ -90,7 +90,7 @@ export function seekMediaElement(
     media.addEventListener('error', onError);
     signal?.addEventListener('abort', onAbort, { once: true });
 
-    timeoutId = window.setTimeout(() => {
+    timeoutId = globalThis.setTimeout(() => {
       finish(
         new Error(
           `Media seek timed out after ${timeoutMs}ms at ${target.toFixed(3)}s.`,

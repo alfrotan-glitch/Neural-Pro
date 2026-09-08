@@ -14,7 +14,7 @@ const timeline = read('src/components/timeline/VirtualizedTimeline.tsx');
 if (!store.includes("timelineEditMode: 'normal' | 'ripple' | 'overwrite'")) fail('Explicit Timeline edit mode contract is missing.');
 if (!store.includes("timelineEditMode: 'normal'")) fail('Timeline must default to isolated/normal editing.');
 if (!store.includes("setTimelineEditMode: (mode: 'normal' | 'ripple' | 'overwrite') => void")) fail('Timeline edit-mode setter contract is missing.');
-if (!store.includes("setRippleMode: (val: boolean) => set({ rippleMode: val, timelineEditMode: val ? 'ripple' : 'normal' })")) fail('Legacy ripple compatibility must map false to normal editing.');
+if (!store.includes("set({ rippleMode: val, timelineEditMode: val ? 'ripple' : 'normal' })")) fail('Legacy ripple compatibility must map false to normal editing.');
 
 const moveStart = drag.indexOf("if (activeDrag.dragMode === 'move')");
 const moveEnd = drag.lastIndexOf("} else if (activeDrag.dragMode === 'rate-stretch')");

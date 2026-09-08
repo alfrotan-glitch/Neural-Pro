@@ -14,7 +14,7 @@ assert.match(drag, /trackLaneRole/);
 assert.match(drag, /sourceLaneRole = \(sourceTrack\.laneRole \?\? sourceTrack\.type\)/);
 assert.match(drag, /A clip may never be dropped into a different semantic lane/);
 assert.match(drag, /const newTrack: Track = \{/);
-assert.match(drag, /laneRole: sourceLaneRole as Track\['laneRole'\]/);
+assert.match(drag, /laneRole: sourceLaneRole as (Track\['laneRole'\]|TimelineTrackLaneRole)/);
 assert.match(multi, /orderedTrackIds: readonly string\[\] = tracks\.map/);
 assert.match(multi, /sourceLaneRole = sourceTrack\.laneRole \?\? sourceTrack\.type/);
 assert.match(multi, /targetLaneRole = targetTrack\.laneRole \?\? targetTrack\.type/);

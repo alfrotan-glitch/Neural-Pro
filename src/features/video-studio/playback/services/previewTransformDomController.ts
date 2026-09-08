@@ -80,6 +80,7 @@ export function clearClipTransformOverrides(
     const element = findClipElement(clipId);
     if (!element) continue;
     element.style.removeProperty('will-change');
+    element.style.removeProperty('transform-origin');
     element.style.removeProperty('line-height');
     element.style.removeProperty('letter-spacing');
   }

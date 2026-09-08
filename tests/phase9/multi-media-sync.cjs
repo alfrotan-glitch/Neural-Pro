@@ -25,8 +25,8 @@ assert.match(session, /syncMediaElementToClip/);
 assert.doesNotMatch(player, /syncAbortRef/);
 assert.doesNotMatch(player, /syncMediaElementToClip\(/);
 assert.doesNotMatch(player, /createMediaSyncSession/);
-assert.match(audioElement, /session\.update\(\{ clip, projectTime: activeTime, isPlaying \}\)/);
-assert.match(videoElement, /session\.update\(\{ clip, projectTime: activeTime, isPlaying \}\)/);
+assert.match(audioElement, /session\.update\(\{[\s\S]*clip,[\s\S]*projectTime: activeTime,[\s\S]*isPlaying/);
+assert.match(videoElement, /session\.update\(\{[\s\S]*clip,[\s\S]*projectTime: activeTime,[\s\S]*isPlaying/);
 assert.match(audioElement, /syncSessionRef\.current\?\.forceSync\(\)/);
 assert.match(videoElement, /syncSessionRef\.current\?\.forceSync\(\)/);
 

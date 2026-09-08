@@ -15,9 +15,9 @@ assert.match(renderer, /getCaptionCanvasPlacement\(width, height, containerHeigh
 assert.match(renderer, /placement\.centerX \+ transformX/);
 assert.match(renderer, /placement\.centerY/);
 assert.match(player, /getCaptionCanvasPlacement\(/);
-assert.match(player, /bottom: `\$\{captionPlacement\.bottomMargin\}px`/);
-assert.match(player, /transform: getPreviewTransformCss\(\{ \.\.\.canonicalTransform, y: 0 \}\)/);
-assert.match(player, /marginLeft: '-50%'/);
+assert.match(player, /left: `\$\{captionPlacement\.centerX\}px`/);
+assert.match(player, /top: `\$\{captionPlacement\.centerY\}px`/);
+assert.match(player, /transform: getPreviewTransformCss\(canonicalTransform\)/);
 assert.match(player, /const canvasDimensions = useMemo/);
 assert.match(captionIndex, /export \* from '\.\/captionRenderPlan'/);
 

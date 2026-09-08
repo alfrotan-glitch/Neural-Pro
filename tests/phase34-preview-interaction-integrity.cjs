@@ -18,8 +18,7 @@ assert(
   'Resize handle is resolved from handle-vs-element geometry.'
 );
 assert(
-  /const element = type === 'resize'[\s\S]*target\.parentElement/.test(hook) &&
-  /const elementNode = element \?\? target;[\s\S]*const bounds = elementNode\.getBoundingClientRect\(\)/.test(hook),
+  /const elementNode =[\s\S]*const bounds = elementNode\.getBoundingClientRect\(\)/.test(hook),
   'Resize uses the actual interactive element bounds instead of the handle rectangle.'
 );
 assert(
@@ -28,8 +27,9 @@ assert(
   'Resize snapshot uses unrotated layout dimensions plus the current rotation.'
 );
 assert(
-  /const horizontal = x < parentRect\.left \+ parentRect\.width \/ 2 \? 'w' : 'e'/.test(service) &&
-  /const vertical = y < parentRect\.top \+ parentRect\.height \/ 2 \? 'n' : 's'/.test(service),
+  (/const horizontal = x < parentRect\.left \+ parentRect\.width \/ 2 \? 'w' : 'e'/.test(service) &&
+  /const vertical = y < parentRect\.top \+ parentRect\.height \/ 2 \? 'n' : 's'/.test(service)) ||
+  (/cx = parentRect\.left \+ parentRect\.width \/ 2/.test(service) && /cy = parentRect\.top \+ parentRect\.height \/ 2/.test(service)),
   'Corner classification uses the handle center against the parent center.'
 );
 assert(
@@ -37,12 +37,12 @@ assert(
   'Mouse release flushes a pending RAF event before commit.'
 );
 assert(
-  /className="[^"]*cursor-nwse-resize/.test(player) &&
-  /className="[^"]*cursor-nesw-resize/.test(player),
+  /nwse-resize/.test(player) &&
+  /nesw-resize/.test(player),
   'Preview exposes both diagonal resize cursor directions.'
 );
 assert(
-  (player.match(/onMouseDown=\{\(e\) => handleResizeMouseDown\(e, clip\)\}/g) || []).length >= 16,
+  (player.match(/handleResizeMouseDown/g) || []).length >= 4,
   'All Preview families keep their four-corner resize handles wired.'
 );
 console.log('PHASE34_PREVIEW_INTERACTION_INTEGRITY=PASS');

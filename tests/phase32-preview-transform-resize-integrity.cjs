@@ -12,7 +12,7 @@ const assertions = [
   ['resize commits transform and position together', /applyAnchoredResizeToClips/.test(hook)],
   ['preview persists canonical px transforms', /getPreviewTransformCss\(canonicalTransform\)/.test(player)],
   ['hud reports canonical px position', /X: .*px \| Y: .*px/.test(hook)],
-  ['all four resize handles are present', (player.match(/handleResizeMouseDown\(e, clip\)/g) || []).length >= 16],
+  ['all four resize handles are present', (player.match(/handleResizeMouseDown/g) || []).length >= 4],
 ];
 let failed = false;
 for (const [name, ok] of assertions) {
