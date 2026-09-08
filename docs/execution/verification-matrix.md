@@ -33,11 +33,13 @@ the difference between "the code exists" and "the behaviour is proven".
 | 21 | A client-supplied model id is rejected | executable | WP-01 | **FAIL** |
 | 22 | Workflow runs terminate after timeout | executable | WP-04 | **UNVERIFIED** |
 | 23 | Recovery brings an abandoned run to a terminal state | executable | WP-10 | **UNVERIFIED** |
-| 24 | Domain layer contains no React/DOM/timer references | static | WP-08 | **UNVERIFIED** |
+| 24 | Domain layer contains no React/DOM/timer references | static | WP-08 | **PASS for `src/domain/core/**`** (`purity` + `boundaries` suites, 2026-09-09) / **UNVERIFIED** for the rest of `src/domain/**`, which does not exist yet |
 | 25 | No secret material in `dist/**` | static | WP-07 | **PASS** (value) |
 | 26 | Pixel parity between preview and export within tolerance | browser | WP-06 | **BLOCKED** |
 | 27 | Full export of a fixture project in a real browser | browser | WP-06/WP-10 | **BLOCKED** |
 | 28 | Live AI operation succeeds end-to-end | live-service | WP-10 | **BLOCKED** (no egress) |
+| 29 | The canonical core agrees with the authorities that execute today (clip/source/effective/timeline duration, time mapping, project duration, clamping, transform normalisation, origin, translation, media frame) | executable | Core Architecture | **PASS** |
+| 30 | Every exported value of `src/domain/core/**` has a test; every core shim is registered, owned and unexpired | static | Core Architecture | **PASS** |
 
 ## 2. Command registry
 
@@ -46,6 +48,7 @@ the difference between "the code exists" and "the behaviour is proven".
 | Typecheck | `npm run typecheck` | static |
 | Lint + boundaries | `npm run lint` | static |
 | Unit/property suite | `npm test` | executable |
+| Canonical core suite | `npx tsx tests/domain-core/run.ts` | executable + static |
 | Export registry repro | `npx tsx audit/repro-export-registry.mts` | executable |
 | Transform order repro | `npx tsx audit/repro-transform-order.mts` | executable |
 | Cover-clip repro | `npx tsx audit/repro-media-cover-clip.mts` | executable |

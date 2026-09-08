@@ -32,12 +32,14 @@ Allowed edges: `L4 → L3 → L2 ← L1`. Infrastructure **implements** domain i
 |---|---|---|
 | `src/ui/**` | L4 | `src/app/**`, `src/domain/**` (read), `src/infra/**` (via hooks) |
 | `src/app/**` (workflows, commands, use-cases) | L3 | `src/domain/**`, `src/infra/**` (interfaces) |
-| `src/domain/**` (project, time, transform, render model) | L2 | `src/domain/**` only |
+| `src/domain/core/**` (the canonical kernel — **exists**) | L2 | `src/domain/core/**` only |
+| `src/domain/**` (per-area re-export shims over the kernel) | L2 | `src/domain/**` only |
 | `src/infra/**` (media, persistence, http, log, ai) | L1 | `src/domain/**`, platform APIs |
 | `server/**` | server | `src/domain/**` **only** (never `src/ui`, never `src/features/**`) |
 
 Today the tree is `src/{components,features,core,store,lib,config,types}` with no layer
-separation. **WP-08 moves code into layers; it does not rewrite it.**
+separation. **`src/domain/core/**` landed on 2026-09-09 (ADR-017)**, so the L2 destination
+exists before the move; WP-08 moves code into layers and does not rewrite it.
 
 ## 3. Current violations (verified)
 
@@ -59,6 +61,11 @@ separation. **WP-08 moves code into layers; it does not rewrite it.**
 2. **Test:** a static test asserting no file under `src/domain/**` imports React or touches
    `window`/`document`. (This is one of the few legitimate *static* assertions — see
    [../testing/test-strategy.md](../testing/test-strategy.md) §7.)
+   **Status: this test exists and runs today** —
+   `npx tsx tests/domain-core/run.ts` → the `purity` suite (platform-API purity), the
+   `boundaries` suite (no edge leaves `src/domain/**`) and the `coverage` suite (every exported
+   kernel value has a test). Each is proven non-vacuous by an injected violation. Registration
+   in the CI runner is owned by WP-00/QA.
 3. **Review:** [../quality/code-review-policy.md](../quality/code-review-policy.md) requires an
    explicit note for any cross-layer import.
 

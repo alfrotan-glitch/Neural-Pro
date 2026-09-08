@@ -120,6 +120,14 @@ Current:  UI ──────────────────────�
 | V4 | Domain logic duplicated to break a cycle | `clipTimelineDuration.ts` header comment states it is "dependency-light so … Preview, Playback, Audio and Export can all use the same duration rule **without creating a feature/core import cycle**" |
 | V5 | UI owns workflow semantics | `VideoStudioPro.tsx:433-705` |
 
+> **Repair status (2026-09-09, ADR-017).** The destination these repairs need now exists:
+> `src/domain/core/**`, the canonical kernel (identity, fps, time, duration, geometry,
+> transform, clip, track, project, validation, errors). It imports nothing outside
+> `src/domain/**`, so **V1 has a valid target** and **V4 has a proven replacement** —
+> `tests/domain-core/parity.test.ts` shows the kernel produces identical values to the modules
+> that execute today. The violations are not yet *closed*: closing them is WP-08's move.
+> See [canonical-core.md](canonical-core.md).
+
 ## 6. State authority map (current)
 
 See [state-architecture.md](state-architecture.md) for the full table. Summary of the

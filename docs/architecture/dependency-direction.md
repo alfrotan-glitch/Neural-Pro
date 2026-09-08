@@ -64,6 +64,16 @@ Move to `src/domain/`:
 Re-export shims at the old paths for one WP, removed in WP-12 (shim removal is a tracked
 ticket, per ADR-006).
 
+> **Layout update (2026-09-09, ADR-017).** The L2 destination now exists as a single cohesive
+> kernel: **`src/domain/core/**`** (`identity`, `fps`, `time`, `duration`, `geometry`,
+> `transform`, `clip`, `track`, `project`, `validation`, `errors`). The per-area target paths in
+> the table above remain the right *public* locations, but each should **re-export the kernel**
+> (`export * from '../core/duration'`) rather than hold a second implementation — which is this
+> document's own migration mechanism. The nine concepts are mutually dependent, so splitting the
+> kernel into nine files would have reproduced the `core ↔ features` cycle one layer down.
+> Full mapping: [../decisions/ADR-017-canonical-core.md](../decisions/ADR-017-canonical-core.md)
+> §"Layout reconciliation".
+
 **Step 2 — break the store cycle.**
 `useHistoryStore` must not import `useProjectStore`. Introduce
 `app/history/CommandHistory` as a plain class; the project store subscribes to it through a

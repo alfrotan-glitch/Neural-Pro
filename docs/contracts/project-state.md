@@ -181,12 +181,15 @@ Mapping from this contract to the kernel:
 
 | Contract section | Kernel authority |
 |---|---|
+| §1 `fps` | `fps.resolveRenderFps` — the single framerate authority (INV-013) |
 | §3 `totalDuration` | `duration.calculateProjectDuration` |
-| §3 canonical clip timeline duration | `duration.getTimelineDuration` |
-| §3 source duration / playback rate | `duration.getSourceDuration` · `duration.getPlaybackRate` |
+| §3.1 media intrinsic duration | `duration.getMediaIntrinsicDuration` (the asset; never a clip bound) |
+| §3.1 trim duration (canonical source duration) | `duration.getTrimDuration` |
+| §3.1 effective clip duration | `duration.getEffectiveClipDuration` |
+| §3.1 timeline duration | `duration.getTimelineDuration` |
+| §3 playback rate | `duration.getPlaybackRate` |
 | §3 project ↔ source time | `duration.projectTimeToSourceTime` · `duration.sourceTimeToProjectTime` |
 | §3 active at time T | `time.intervalContains` over a half-open `TimeInterval` |
 | §4 transform | `transform.canonicalTransform` · `transform.transformMatrix` (`T · R · S`) |
-| §1 `fps` | `fps.resolveRenderFps` — the single framerate authority (INV-013) |
 
 Reference: [../architecture/canonical-core.md](../architecture/canonical-core.md).

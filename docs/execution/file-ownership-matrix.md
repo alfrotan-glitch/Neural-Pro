@@ -110,6 +110,16 @@ vocabulary.
 `core/engine/**` and `features/**` **delegate** to the kernel by re-export; the dead models are
 deleted by WP-08.
 
+**Layout.** The kernel is one cohesive package `src/domain/core/**`, not nine per-area files: the
+concepts are mutually dependent, so the ADR-012/dependency-direction target paths
+(`src/domain/time/*`, `src/domain/project/*`, `src/domain/render/*`, `src/domain/identity.ts`)
+are the right *public locations* but must **re-export the kernel** rather than hold a second
+implementation. Full mapping: ADR-017 §"Layout reconciliation".
+
+**Commit convention.** Core Architecture is a domain, not a work package, so `type(wp-XX)` does
+not apply. Its commits are tagged **`type(core):`** with the same discipline (one concern per
+series, no mixed ownership).
+
 ## 5. AI / captions / overlays
 
 | Path | Current owner | Target owner | WP | Allowed agents | Sens. | Merge risk |

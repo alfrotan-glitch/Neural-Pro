@@ -27,6 +27,18 @@ src/domain/
   (time|render|project)/** ← staged relocations, owned by WP-03 / WP-08 / WP-11
 ```
 
+## Layout
+
+The kernel is one cohesive `core/` package rather than nine per-area files, because the concepts
+are mutually dependent (duration needs time; clip needs duration; track needs clip; project needs
+both). The ADR-012 / `dependency-direction.md` target paths (`src/domain/time/*`,
+`src/domain/project/*`, `src/domain/render/*`, `src/domain/identity.ts`) remain the right public
+locations for WP-08's move, but each must **re-export the kernel** instead of holding a second
+implementation. Mapping: `docs/decisions/ADR-017-canonical-core.md` §"Layout reconciliation".
+
+Commits owned by this domain are tagged **`type(core):`** — it is a domain, not a work package,
+so `type(wp-XX)` does not apply.
+
 ## Rules
 
 1. **`src/domain/core/**` imports only `src/domain/core/**`.** No edge to `features/**`,

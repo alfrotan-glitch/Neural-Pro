@@ -174,6 +174,47 @@ audio) is no longer unconditionally unbounded: if it carries a trim window, that
 bounds it. The executing `clipTimelineDuration.ts` still short-circuits `imageUrl`/`textContent`
 to `null`. WP-11 must verify against real projects before switching call sites over.
 
+## Layout reconciliation (ADR-012 target paths vs the kernel)
+
+ADR-012 and [../architecture/dependency-direction.md](../architecture/dependency-direction.md)
+§3 name per-area target paths inside the domain layer:
+
+| ADR-012 / dependency-direction target | Kernel module |
+|---|---|
+| `domain/time/clipDuration.ts` | `domain/core/duration.ts` |
+| `domain/time/projectDuration.ts` | `domain/core/duration.ts` |
+| `domain/time/mediaTime.ts` | `domain/core/duration.ts` |
+| `domain/time/*` (clipBounds, intervals) | `domain/core/time.ts` |
+| `domain/project/types.ts` | `domain/core/{clip,track,project}.ts` |
+| `domain/project/validation/*` | `domain/core/validation.ts` |
+| `domain/render/transform.ts` | `domain/core/transform.ts` |
+| `domain/render/geometry.ts` | `domain/core/geometry.ts` |
+| `domain/identity.ts` | `domain/core/identity.ts` |
+
+**Decision.** The kernel is a single cohesive `src/domain/core/**` package rather than nine
+per-area files. Rationale:
+
+* the concepts are mutually dependent (duration needs time; clip needs duration; track needs
+  clip; project needs both). Splitting them across nine files would have re-created the
+  `core ↔ features` cycle one layer down, as `domain/time/*` and `domain/project/*` imported
+  each other;
+* a flat kernel keeps the "one definition per concept" rule checkable in one place;
+* ADR-012's requirement is that the *destination layer exists and the move is mechanical*, not
+  that the file names match a 2026-09-08 guess.
+
+**Consequence for WP-08.** The ADR-012 target paths remain valid *as re-export shims over the
+kernel* — which is exactly ADR-012's own migration mechanism ("re-export shims bridge one work
+package"). A file moved to `src/domain/time/clipDuration.ts` should contain
+`export * from '../core/duration'`, not a second implementation. ADR-012 is not amended: it is
+an accepted ADR and this refinement is recorded here instead.
+
+## Commit convention
+
+Core Architecture is a **domain**, not a work package, so `type(wp-XX)` does not apply. Commits
+owned by this domain use the tag **`type(core):`** (`feat(core):`, `refactor(core):`,
+`test(core):`, `docs(core):`), keeping the same discipline the DoD requires: one concern per
+commit series, no mixed ownership.
+
 ## Consequences
 
 **Positive**
