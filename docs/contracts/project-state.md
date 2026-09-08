@@ -144,3 +144,25 @@ Serialisation is `structuredClone` + `assertValidProjectState`; the on-disk enve
 `properties.waveformData` is currently generated with `Math.random()` on every sync and then
 persisted. Target: derive the waveform from the decoded audio (deterministic), or omit it and
 compute at render time. No persisted value may be random.
+
+---
+
+## 9. Canonical core (amended by ADR-017)
+
+**ADR-017** ([../decisions/ADR-017-canonical-core.md](../decisions/ADR-017-canonical-core.md))
+establishes `src/domain/core/**` as the canonical kernel for the concepts in §1–§6. Nothing in
+§1–§8 above is altered by it; the kernel is how those rules are now *implemented once*.
+
+Mapping from this contract to the kernel:
+
+| Contract section | Kernel authority |
+|---|---|
+| §3 `totalDuration` | `duration.calculateProjectDuration` |
+| §3 canonical clip timeline duration | `duration.getTimelineDuration` |
+| §3 source duration / playback rate | `duration.getSourceDuration` · `duration.getPlaybackRate` |
+| §3 project ↔ source time | `duration.projectTimeToSourceTime` · `duration.sourceTimeToProjectTime` |
+| §3 active at time T | `time.intervalContains` over a half-open `TimeInterval` |
+| §4 transform | `transform.canonicalTransform` · `transform.transformMatrix` (`T · R · S`) |
+| §1 `fps` | `fps.resolveRenderFps` — the single framerate authority (INV-013) |
+
+Reference: [../architecture/canonical-core.md](../architecture/canonical-core.md).

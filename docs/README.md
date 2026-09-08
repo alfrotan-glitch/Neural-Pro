@@ -33,6 +33,7 @@ one of them — record it, do not guess.
 | Asking "can we ship?" | [execution/verification-matrix.md](execution/verification-matrix.md) + [execution/runtime-certification-plan.md](execution/runtime-certification-plan.md) |
 | Asking "does it work in AI Studio?" | [quality/AI-STUDIO-COMPATIBILITY-GATE.md](quality/AI-STUDIO-COMPATIBILITY-GATE.md) (gate G-31) + [architecture/AI-STUDIO-MEDIA-RUNTIME.md](architecture/AI-STUDIO-MEDIA-RUNTIME.md) |
 | Asking "what may I assume about the runtime?" | [contracts/AI-STUDIO-RUNTIME-INVARIANTS.md](contracts/AI-STUDIO-RUNTIME-INVARIANTS.md) |
+| Asking "where is this concept defined?" | [architecture/canonical-core.md](architecture/canonical-core.md) + [ADR-017](decisions/ADR-017-canonical-core.md) |
 | Asking "why is it like this?" | [decisions/](decisions/) |
 | Tracking a defect | `AUDIT_REPORT.md` (audit baseline) + [quality/invariant-register.md](quality/invariant-register.md) |
 | Tracking a risk | [quality/risk-register.md](quality/risk-register.md) |

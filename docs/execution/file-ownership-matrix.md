@@ -89,6 +89,27 @@ Merge risk: `H` (contended, likely conflicts) · `M` · `L`.
 | `src/components/workspace/ResourceSidebar.tsx` | UI | `src/ui/workspace/*` | WP-05, WP-11, WP-12 | React Lead | **H** | **H** |
 | `src/features/video-studio/shared/types/identity.ts` | domain | `src/domain/identity.ts` | WP-05 | Staff Eng | M | L |
 
+## 4A. Canonical core — domain kernel (added 2026-09-09, ADR-017)
+
+Owned by **Core Architecture (Principal Architect)**. These are the canonical definitions; every
+other module imports them instead of redeclaring. **No other agent may edit these files without
+an ADR** — this is the same protection class as `metadata.json`, applied to the domain
+vocabulary.
+
+| Path | Current owner | Target owner | WP | Allowed agents | Sens. | Merge risk |
+|---|---|---|---|---|---|---|
+| `src/domain/core/**` (11 files, new) | Core Architecture | `src/domain/core/**` | **Core Architecture only** (adoption by WP-03/05/08/11 is a *re-export*, not an edit) | Principal Architect | **H** | M |
+| `src/domain/README.md` | Core Architecture | layer contract | Core Architecture | Principal Architect | M | L |
+| `tests/domain-core/**` (new, 8 suites) | Core Architecture | `tests/unit/domain/**` | Core Architecture (registration in the CI runner: WP-00/QA) | Principal Architect, QA | M | L |
+| `src/domain/assets/**` (new) | – | persistence interface | WP-05 | Staff Eng | **H** | M |
+| `~~src/types.ts~~`, `~~src/types/schema.ts~~` | – | **deleted** | Core Architecture (done) | Principal Architect | L | L |
+| — they had **zero importers** and were the only consumers of the dead `VideoStudioProject` model | | | | | | |
+| `src/types/export.ts` | export | retained (one live importer: `exportConverter.ts`) | WP-03 | Media Pipeline | L | L |
+
+**Consolidation map** (full table in ADR-017 §"Consolidation map"): the existing authorities in
+`core/engine/**` and `features/**` **delegate** to the kernel by re-export; the dead models are
+deleted by WP-08.
+
 ## 5. AI / captions / overlays
 
 | Path | Current owner | Target owner | WP | Allowed agents | Sens. | Merge risk |
@@ -177,6 +198,8 @@ protected and must not be treated as incidental.
 | **`.env.example` exists** | Not "missing" (D-028 narrowed). It documents AI Studio-injected `GEMINI_API_KEY` and `APP_URL` |
 | **Container/Docker rows are optional** | They belong to the external deployment path, not the AI Studio critical path |
 | **New isolation boundaries** | AI gateway, export runtime, media runtime, persistence, workflow engine, capability probe and compatibility evidence each have a single owning WP (§8) |
+| **Canonical core added** | `src/domain/core/**` is owned by Core Architecture and is the single definition of Project/Asset/Track/Clip/Time/FPS/Duration/Transform/Geometry. `src/types.ts` and `src/types/schema.ts` are deleted (zero importers, unowned) |
+| **Dead legacy model located** | `VideoStudioProject`, `VideoScene`, `SceneTransition*`, `Timeline`, `TimelineTrack`, `TimelineClip*` and `MediaAsset` are unreachable. Deletion is owned by WP-05/WP-08 |
 
 ## 10. Contention hotspots (updated)
 

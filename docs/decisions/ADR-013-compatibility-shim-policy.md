@@ -39,6 +39,8 @@ Rules:
 | SHIM-003 | Old-path re-exports after the layered move | WP-08 | WP-12 |
 | SHIM-004 | `410 Gone` handlers for `/api/generateContent`, `/api/export/*` | WP-01 | WP-12 |
 | SHIM-005 | `DEFAULT_CAPTION_FPS` deprecated alias | WP-07 | WP-12 |
+| SHIM-006 | `LaneRole` also declared as `TimelineTrackLaneRole` in `features/.../project/types/project.ts` (identical values; the kernel copy is canonical) | Core Architecture | WP-08 |
+| SHIM-007 | duration / time / transform / geometry authorities still executing in `core/engine/**` and `features/**` alongside the kernel | Core Architecture | WP-12 (earlier if the adopting WP moves first) |
 
 ## Consequences
 
