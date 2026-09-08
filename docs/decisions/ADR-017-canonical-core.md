@@ -3,7 +3,7 @@
 **Status:** Accepted
 **Date:** 2026-09-09
 **Owner:** Core Architecture (Principal Architect)
-**Supersedes:** nothing. **Amends:** [../contracts/project-state.md](../contracts/project-state.md) §9 (added)
+**Supersedes:** nothing. **Amends:** [../contracts/project-state.md](../contracts/project-state.md) §3 (semantic separation) and §9 (added)
 **Implements:** [ADR-012](ADR-012-layered-modules.md) (L2 domain layer), [ADR-000](ADR-000-source-of-truth-precedence.md) (code is the truth)
 **Related:** [ADR-013](ADR-013-compatibility-shim-policy.md) (SHIM-006, SHIM-007)
 
@@ -117,10 +117,62 @@ Verification after deletion: `tsc --noEmit` exit 0; `npm test` exit 0 (`PHASE9_T
 |---|---|---|---|
 | **F-1** | `mediaTimeMapper.projectTimeToSourceTime` returns `NaN` for a non-finite project time (`Math.max(0, NaN)`), and callers assign it straight to `videoEl.currentTime` (`mediaSyncController.ts:34`, `playbackService.ts:44`). `projectDuration.clampProjectTime(t, NaN)` also returns `NaN` (**F-1b**) and feeds `currentTime`. The kernel clamps instead. | pinned in `tests/domain-core/parity.test.ts` | WP-11 |
 | **F-2** | The executing preview emitter `getPreviewTransformCss` emits `translate3d(…) scale(sx, sy) rotate(r)` = **T · S · R**; the canonical order in `contracts/project-state.md` §4 is **T · R · S**. Identical for a uniform scale; divergent exactly when `scaleX ≠ scaleY` **and** `rotation ≠ 0` — the D-004 case (measured drift 662.019 px). | pinned in `tests/domain-core/transform.test.ts` | WP-03 |
-| **F-3** | `getCanonicalClipSourceDuration` answers two different questions depending on its input: `persisted − trim.in` when persisted metadata exists, `trim.out − trim.in` otherwise. Pinned as quirk **Q1** by characterization tests; reconciling it is a product decision, not a code fix. | pinned in `tests/domain-core/duration.test.ts` | WP-11 |
+| **F-3** | **DECIDED 2026-09-09 (owner).** `getCanonicalClipSourceDuration` answered two different questions behind one name: `persisted − trim.in` when persisted metadata existed, `trim.out − trim.in` otherwise. The canonical clip source duration is now **the trim window**; the persisted value is redefined as the asset's intrinsic duration. Canonical core updated; **downstream integration is WP-11's** and is not enforced here. | pinned in `tests/domain-core/duration.test.ts` and `parity.test.ts` | WP-11 (integration) |
 | **F-4** | Two `getVisible…TimeRange` implementations disagree: `timelineGeometry.getVisibleTimeRange` uses the raw viewport width; `timelineViewportGeometry.getVisibleTimelineTimeRange` subtracts `TIMELINE_HEADER_WIDTH` (160 px) first. One of them is wrong by 160 px of time. | `timelineGeometry.ts:91` vs `timelineViewportGeometry.ts:46` | WP-08 / WP-11 |
 
 ---
+
+## F-3 decision (2026-09-09) — canonical clip source duration is the TRIM WINDOW
+
+**Status:** decided by the project owner. Recorded here and in
+[../contracts/project-state.md](../contracts/project-state.md) §3. **Downstream production
+modules are deliberately NOT updated — WP-11 owns that integration.**
+
+### The four quantities, separated
+
+Four different quantities previously shared the name "source duration". Each now has exactly one
+name, one function and one meaning:
+
+| # | Concept | Definition | Canonical function | `null` means |
+|---|---|---|---|---|
+| 1 | **Media intrinsic duration** | duration of the source **asset** | `duration.getMediaIntrinsicDuration` | the asset duration is unknown |
+| 2 | **Trim duration** | `trim.out − trim.in` | `duration.getTrimDuration` | the clip has no valid trim window ⇒ **unbounded** |
+| 3 | **Effective clip duration** | trim duration ÷ playback rate | `duration.getEffectiveClipDuration` | unbounded |
+| 4 | **Timeline duration** | `min(declared, effective)` | `duration.getTimelineDuration` | n/a — always finite |
+
+### Rules
+
+1. **The canonical clip source duration is the trim window** (#2). It is the only answer to
+   "how much source media may this clip consume".
+2. **Media intrinsic duration (#1) is never a bound on a clip.** It is a cache of
+   `AssetRegistry.measure()` (ADR-010, WP-05) persisted on the clip so an export snapshot or a
+   cold reload can still *validate* a trim window when the live media handle is gone.
+3. **The declared `duration` remains the editor's authoritative shortening**, which is why the
+   timeline duration is `min(declared, effective)` and not `effective` alone.
+4. **The old `getSourceDuration` is removed** from the kernel rather than kept as an alias — two
+   names for one number is what produced F-3.
+
+### What changed in the kernel
+
+| Before | After |
+|---|---|
+| `getSourceDuration` — persisted metadata branch (`persisted − trim.in`) **and** trim branch (`trim.out − trim.in`), plus an `imageUrl`/`textContent` short-circuit to `null` | `getMediaIntrinsicDuration` (asset) · `getTrimDuration` (trim window) · `getEffectiveClipDuration` (÷ rate) · `getTimelineDuration` (`min(declared, effective)`). No kind-based short-circuit |
+
+### Divergence that WP-11 must integrate
+
+For a clip with `trim {in: 2, out: 9}`, `duration: 20`, `sourceMediaDuration: 12`:
+
+| | legacy (`getCanonicalClipSourceDuration` / `…TimelineDuration`) | canonical (`getTrimDuration` / `getTimelineDuration`) |
+|---|---|---|
+| source bound | `12 − 2` = **10** | `9 − 2` = **7** |
+| timeline duration | **10** | **7** |
+
+Pinned executably in `tests/domain-core/parity.test.ts` (F-3) and `duration.test.ts`.
+
+**Adoption note.** Under this definition a clip whose media is unbounded (image, text, generated
+audio) is no longer unconditionally unbounded: if it carries a trim window, that window now
+bounds it. The executing `clipTimelineDuration.ts` still short-circuits `imageUrl`/`textContent`
+to `null`. WP-11 must verify against real projects before switching call sites over.
 
 ## Consequences
 

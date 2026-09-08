@@ -40,7 +40,9 @@ Pure by construction and enforced by `tests/domain-core/purity.test.ts`:
 | What unit is project time? | `time.Seconds` | seconds, always. Frames, pixels and microseconds are projections |
 | Is a clip active at time T? | `time.intervalContains` over a half-open `TimeInterval` | `[start, end)` — adjacent clips never both render at the boundary |
 | How long is a clip on the timeline? | `duration.getTimelineDuration(clip)` | `min(declared, sourceDuration / rate)`; `declared` when the source is unbounded |
-| How much source media may a clip consume? | `duration.getSourceDuration(clip)` | images and text are unbounded (`null`); see finding **F-3** |
+| What is the source asset's duration? | `duration.getMediaIntrinsicDuration(clip)` | the **asset's** duration; **never** a bound on the clip |
+| How much source media may a clip consume? | `duration.getTrimDuration(clip)` | **the trim window** (`trim.out − trim.in`) — F-3 decision 2026-09-09; `null` = unbounded |
+| What is the clip's effective duration? | `duration.getEffectiveClipDuration(clip)` | trim duration ÷ playback rate |
 | What is the project duration? | `duration.calculateProjectDuration(tracks)` | the furthest clip endpoint; **derived**, never written (INV-001) |
 | Where does media sit in the frame? | `geometry.mediaFrameGeometry(size)` | 85 % inset, centred — same in preview and export |
 | How is source media fitted? | `geometry.fitRect(source, frame, mode)` | `cover` is the executing default (`object-cover` in preview, `max()` scale in export) |
@@ -62,6 +64,21 @@ CanonicalClip  (strict: finite numbers, normalised transform, derived effectiveD
 Same pattern for tracks (`normalizeTrack`) and projects (`normalizeProject`). Validation that
 must fail loudly uses the `assert*` predicates and throws `DomainInvariantError` — it never
 silently repairs.
+
+## 3.1 Duration vocabulary (F-3 decision, 2026-09-09)
+
+```
+media intrinsic duration   ── the ASSET's duration (validation only, never a clip bound)
+        │
+trim duration              ── trim.out − trim.in        ◄── THE canonical source duration
+        │  ÷ playbackRate
+effective clip duration    ── trim duration / rate
+        │  min(declared, …)
+timeline duration          ── what the clip occupies    ◄── the only value the editor renders
+```
+
+One function per concept, no aliases. The old `getSourceDuration` — which answered two different
+questions depending on whether persisted metadata existed — is removed rather than aliased.
 
 ## 4. What is deliberately **not** in the kernel
 
@@ -96,7 +113,7 @@ silently repairs.
 | Class | Command | Result |
 |---|---|---|
 | executable | `npx tsx tests/domain-core/run.ts` | `CANONICAL_CORE=PASS` (8 suites) |
-| executable | `npx tsx tests/domain-core/run.ts` → `parity` | the kernel agrees with every module that executes today, and every divergence (F-1…F-3) is pinned |
+| executable | `npx tsx tests/domain-core/run.ts` → `parity` | the kernel agrees with every module that executes today, and every divergence (F-1, F-1b, F-3) is pinned |
 | static | `tests/domain-core/purity.test.ts` | `src/domain/**` is pure (INV-015) |
 | static | `npx tsc --noEmit` | exit 0 |
 | regression | `npm test` | exit 0 (`PHASE9_TEST_SUITE=PASS`) — **no production module imports the kernel yet, so no behaviour could change** |
@@ -104,11 +121,32 @@ silently repairs.
 Per ADR-000 the last row is a *regression* check, not evidence of correctness; the first three
 rows are the evidence.
 
+### CI registration facts (for WP-00 / QA)
+
+The suite is ready for formal registration in the CI test runner. Verified, not assumed:
+
+| Property | Evidence |
+|---|---|
+| Command | `npx tsx tests/domain-core/run.ts` (`tsx` is an existing devDependency; no new dependency) |
+| Success exit code | `0`, with `CANONICAL_CORE=PASS` on the last line |
+| Failure exit code | **1**, with a `[FAIL] <suite>: <message>` line per failing suite and `CANONICAL_CORE=FAIL`. Proven with an injected failing suite (negative control, run outside the repository) |
+| Machine-readable summary | `CANONICAL_CORE_SUITES=<n> PASSED=<n> FAILED=<n>` |
+| Deterministic | two consecutive runs produced **byte-identical** output |
+| Working directory | independent — verified by running from `/tmp` with an absolute path |
+| Network / browser / env | none. No `fetch`, no browser, no `process.env`, no clock |
+| Ordering | fixed declaration order; no suite depends on another |
+| Runtime | Node 22 (`engines: >=20.18 <23`), no build step required |
+
+Not yet done (owned by WP-00/QA): registration in `tests/phase9/test-runner.cjs` and the
+corresponding `package.json` script. Both files are outside Core Architecture's ownership, so
+they were not modified.
+
+
 ## 8. Findings owned elsewhere
 
 | ID | Finding | Owner |
 |---|---|---|
 | F-1 / F-1b | `NaN` propagation in `mediaTimeMapper.projectTimeToSourceTime` and `projectDuration.clampProjectTime` | WP-11 |
 | F-2 | Preview emitter uses `T·S·R`; the canonical order is `T·R·S` (diverges for `scaleX ≠ scaleY` with rotation — the D-004 case) | WP-03 |
-| F-3 | Source duration answers two different questions depending on persisted metadata (quirk Q1) | WP-11 |
+| F-3 | **DECIDED 2026-09-09.** Canonical clip source duration is the **trim window**; persisted media metadata is redefined as the asset's intrinsic duration. Canonical core updated; **downstream integration is WP-11's** | WP-11 (integration) |
 | F-4 | Two `getVisible…TimeRange` implementations disagree by the 160 px track header | WP-08 / WP-11 |

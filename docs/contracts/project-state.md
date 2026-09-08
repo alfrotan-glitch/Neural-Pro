@@ -81,6 +81,30 @@ useProjectStore.executeCommand(command)
 
 **`setTotalDuration(_duration)` already ignores its argument and recomputes.** Keep that.
 
+### 3.1 Duration semantics — AMENDED BY ADR-017 (F-3 decision, 2026-09-09)
+
+**Normative.** The two rows above marked *source duration* and *canonical clip timeline duration*
+are amended as follows. **Downstream production modules are not updated yet — WP-11 owns that
+integration.**
+
+**Canonical clip source duration is the TRIM WINDOW.**
+
+| Concept | Definition | Authority |
+|---|---|---|
+| media intrinsic duration | duration of the source **asset** (cache of `AssetRegistry.measure()`) | `duration.getMediaIntrinsicDuration` |
+| trim duration | `trim.out − trim.in` | `duration.getTrimDuration` |
+| effective clip duration | trim duration ÷ playback rate | `duration.getEffectiveClipDuration` |
+| timeline duration | `min(declared, effective)` | `duration.getTimelineDuration` |
+
+* Media intrinsic duration is **never** a bound on a clip. Its role is validation of a trim
+  window when the live media handle is unavailable.
+* The declared `duration` remains the editor's authoritative shortening, hence
+  `min(declared, effective)` rather than `effective`.
+* Superseded: "`else persisted sourceMediaDuration / mediaDuration / sourceDuration`" as a
+  duration *source*, and the `imageUrl` / `textContent` short-circuit to `null`.
+* Worked example (`trim {in: 2, out: 9}`, `duration: 20`, `sourceMediaDuration: 12`):
+  legacy `10`, canonical `7`.
+
 ## 4. Transform contract
 
 ```ts
