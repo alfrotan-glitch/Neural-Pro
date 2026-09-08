@@ -126,7 +126,7 @@ panel, or the feature must be removed.
 | App boots on a published URL | browser / AI Studio | **UNVERIFIED** (G-31/AS-01, context U) |
 | Client/server boundary works | live-service | **UNVERIFIED** (AS-02) |
 | Gemini via server-side secret | live-service | **UNVERIFIED** (AS-03) |
-| Full flow with no external service | AI Studio | **UNVERIFIED** (AS-14) |
+| Full flow requires no **external media-processing/rendering service** (Gemini AI operations are permitted) | AI Studio | **UNVERIFIED** (AS-14) |
 | Container boot with `PORT=8080` | deployment (**optional**) | **BLOCKED** — optional path, no container run |
 | Production static serving | deployment (**optional**) | **UNVERIFIED** |
 | Graceful shutdown | deployment (**optional**) | **UNVERIFIED** |

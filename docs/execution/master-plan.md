@@ -61,7 +61,12 @@ Concurrent-safe pairs (disjoint ownership):
 
 Hard serialisations (shared files):
 `WP-05 → WP-02 → WP-03 → WP-04`, `WP-05 → WP-11`, `WP-01 → WP-09`,
-`WP-07 before WP-13's server probe`, `WP-12 last`.
+**`WP-00 → WP-13` (the only hard dependency of WP-13)**, `WP-12 last`.
+
+**Not a serialisation (removed contradiction):** `WP-07 → WP-13` is **optional enrichment**, not a
+dependency. If WP-07 has landed, WP-13 consumes `/api/runtime/capabilities` and correlates it; if
+it has not, WP-13 marks server-side capability evidence **unavailable** and continues every
+independent check.
 
 ## 3. Phase gates
 
@@ -71,8 +76,10 @@ Hard serialisations (shared files):
 | **G-RECON** | **Runtime reconciliation + architecture freeze accepted** | **Current — pending owner approval** |
 | **G-P0** | WP-00 + WP-01 + WP-02 merged; 3 P0 defects closed | pending |
 | **G-P1** | All P1 defects closed; static + executable gates PASS | pending |
-| **G-31** | AI Studio compatibility gate PASS in **both** contexts (preview + published) | **UNVERIFIED** |
-| **G-RT** | G-31 PASS + browser/live-service stages executed | pending |
+| **G-31-P** | Preview Compatibility Gate PASS (Context P) | **UNVERIFIED** |
+| **G-31-U** | Published App Compatibility Gate PASS (Context U) | **UNVERIFIED** |
+| **G-31** | **PASS iff G-31-P PASS AND G-31-U PASS**; otherwise FAIL / BLOCKED / UNKNOWN | **UNVERIFIED** |
+| **G-RT** | G-31 = PASS (both contexts) + browser/live-service stages executed | pending |
 | **G-PROD** | Monitoring live, rollback rehearsed, soak clean | pending |
 
 ## 4. Per-WP target-runtime review (required by the reconciliation)

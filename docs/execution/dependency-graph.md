@@ -48,7 +48,7 @@ WP-07 ── (optional) ──► external container/Docker path ──► Stage
 | Edge | Why |
 |---|---|
 | WP-00 → WP-13 | the capability probe harness and the report format must exist before verification runs |
-| WP-07 → WP-13 | `/api/runtime/capabilities` is the server half of the probe |
+| WP-07 ⇢ WP-13 | **OPTIONAL ENRICHMENT** — `/api/runtime/capabilities` is the server half of the probe. If WP-07 has landed, WP-13 consumes and correlates it. If it has not, WP-13 marks server-side capability evidence **unavailable** and continues every independent check |
 | WP-13 → WP-02/05/06/10 | capability findings (P-01…P-06) may re-scope export delivery, storage strategy, the browser suite and certification |
 | WP-01 → WP-09 | WP-09 migrates AI call sites onto the operations WP-01 creates |
 | WP-05 → WP-02 | `ExportMediaPool` resolves by `AssetId` |
@@ -79,7 +79,10 @@ WP-07 ── (optional) ──► external container/Docker path ──► Stage
 ## 4. Critical path
 
 ```
-WP-00 → WP-07 → WP-13 → WP-05 → WP-02 → WP-03 → WP-04 → WP-10 → WP-12
+WP-00 → WP-13 → WP-05 → WP-02 → WP-03 → WP-04 → WP-10 → WP-12
+
+**WP-13's only HARD dependency is WP-00** (probe harness + report schema). WP-07 is **optional
+enrichment**: WP-13 must be executable in full without it.
 ```
 
 Nine work packages. WP-13 sits early deliberately: its answers can change the shape of WP-02,

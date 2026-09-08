@@ -30,7 +30,8 @@ runtime**.
 2. **The AI Studio server runtime performs no media processing.** Its role is the controlled AI
    gateway (Strategy C): `generatePodcastScript`, `generateCaptions`, `refineCaptions`,
    `generateSpeech` — bounded, cancellable, timeout-limited text operations.
-3. **No FFmpeg, no `ffmpeg-static`, no `spawn`.** FFmpeg is classified **D — unsupported** for
+3. **No FFmpeg, no `ffmpeg-static`, no `spawn`.** FFmpeg is classified **D — unsupported**
+   (provisional, pending the AS-13 runtime investigation) for
    the target runtime (seven of ten capability questions unresolved — see
    [../architecture/AI-STUDIO-MEDIA-RUNTIME.md](../architecture/AI-STUDIO-MEDIA-RUNTIME.md) §4).
 4. **Capability detection is mandatory.** Required capabilities are probed at startup and before

@@ -232,9 +232,14 @@ gates executed, is `ENGINEERING READY`; `RUNTIME CERTIFIED` additionally require
 **Capability classes:** A 14 · B 6 · **C 12 (RUNTIME-UNKNOWN — must be resolved by execution
 inside AI Studio)** · D 6 · E 4.
 
-**No compatibility claim is made.** The AI Studio compatibility gate **G-31 is UNVERIFIED**:
-no execution inside Google AI Studio has been performed from this environment. Twelve capability
-items and six frame-specific unknowns (`P-01…P-06`) await WP-13.
+**No compatibility claim is made.** The AI Studio compatibility gate is **UNVERIFIED**
+(`G-31-P` and `G-31-U` both): no execution inside Google AI Studio has been performed from this
+environment. Twelve capability items and six frame-specific unknowns (`P-01…P-06`) await WP-13.
+
+WP-13's only hard dependency is WP-00; WP-07 is optional enrichment. Every observation is
+classified (`EXECUTED-RUNTIME` / `EXECUTED-BROWSER` / `STATIC-EVIDENCE` / `DOCUMENTED-PLATFORM` /
+`INFERRED` / `BLOCKED` / `UNKNOWN`), and **no runtime criterion passes on static or documentary
+evidence alone**. `G-31 = PASS` only if both contexts pass.
 
 ### New defects discovered during reconciliation
 

@@ -14,7 +14,7 @@ Legend — **Status:** `PASS` (verified executably) · `FAIL` (verified executab
 
 | ID | Invariant | Statement | Verification | Class | Owner WP | Status |
 |---|---|---|---|---|---|---|
-| **AS-INV-01** | **Runtime invariant** | Neural-Pro MUST operate in the Google AI Studio Web App runtime **without mandatory Cloud Run dependency**. No requirement, gate, invariant or work package may depend on a self-managed Cloud Run deployment existing. | Gate **G-31 / AS-14**: run the full flow with no external service; plus a static test that no requirement document names Cloud Run as mandatory | executable + static | WP-13 | **UNVERIFIED** |
+| **AS-INV-01** | **Runtime invariant** | Neural-Pro MUST operate in the Google AI Studio Web App runtime **without mandatory Cloud Run dependency**. No requirement, gate, invariant or work package may depend on a self-managed Cloud Run deployment existing. | Gate **G-31-P and G-31-U / AS-14**: verify that **media export does not depend on an unauthorised external media-processing or rendering service** (Gemini AI operations are an *allowed* external dependency); plus a static test that no requirement document names Cloud Run as mandatory. **No external-service requirement** here means no external *runtime/media* dependency, not zero external services | executable + static | WP-13 | **UNVERIFIED** |
 | **AS-INV-02** | **Secret invariant** | No Gemini secret reaches client code. `GEMINI_API_KEY` exists only in the AI Studio server runtime; it is never in the client bundle, never in `vite.config.ts` `define`, never in a response, never in a log. | `G-31 / AS-04`: grep `AIza…` and `GEMINI_API_KEY=<value>` over `dist/**`; assert no secret in `define`; assert no secret in any response body | static + executable | WP-07 | **UNVERIFIED** (values clean today; the `define` mechanism still exists — D-021) |
 | **AS-INV-03** | **AI invariant** | The client cannot select arbitrary model, system instruction, tool, safety setting, or generation configuration. The path is: **client intent → validated operation → server-owned configuration → Gemini**. | `G-31 / AS-03` + server contract tests: crafted body ⇒ 400; no model id outside `server/config/models.ts` | executable + static | WP-01 | **FAIL** today (`server.ts:232` forwards `req.body`) |
 | **AS-INV-04** | **Export invariant** | Export cannot depend on Preview DOM state. No `document.querySelector`, no React ref from the preview, no requirement that any preview component be mounted. | `G-31 / AS-10` + headless export test; lint bans `document.querySelector` outside `src/infra/**` | executable + static | WP-02 | **FAIL** today (`ExportMediaRegistry` scrapes the DOM) |
@@ -22,8 +22,8 @@ Legend — **Status:** `PASS` (verified executably) · `FAIL` (verified executab
 | **AS-INV-06** | **Persistence invariant** | Ephemeral browser object URLs are **never** treated as durable asset identity. No `blob:`/`data:` string may appear in a persisted document. | `G-31 / AS-08`; serialisation assertion | executable | WP-05 | **FAIL** today (D-006) |
 | **AS-INV-07** | **Failure invariant** | External/API failure cannot become fake success. No 200-with-substitute, no 1-second-of-silence TTS, no hard-coded "API Connected", no silent placeholder. | `G-31 / AS-12`: five induced failure modes ⇒ distinct typed non-success codes | executable | WP-09 | **FAIL** today (D-009) |
 | **AS-INV-08** | **Workflow invariant** | Every workflow (W1 podcast, W2 TTS, W3 captions, W4 export, W5 recovery) has **explicit states, transitions, cancellation, timeout, retry and failure semantics**, owned by the application-level runtime — never by a React `useEffect`. | Workflow lifecycle tests; cancel-at-every-step; timeout tests; static: no multi-await effects | executable + static | WP-04 | **FAIL** today (D-010) |
-| **AS-INV-09** | **Runtime capability invariant** | Unsupported capabilities must be **detected**, not silently assumed. Export is disabled *with an explanation* when a required capability is missing; it is never attempted and allowed to fail obscurely. | Capability probe tests; forced-unavailable fixtures; `G-31 / AS-16` | executable | WP-07, WP-13 | **UNVERIFIED** (no probe exists today) |
-| **AS-INV-10** | **Server scope invariant** | The AI Studio server runtime performs **no media processing, no filesystem persistence and no background jobs**. It is a controlled AI/text gateway with bounded, cancellable, timeout-limited operations. | Static: no `spawn`, no `/tmp`, no durable writes in `server/**`; runtime: an export completes with the server receiving zero export traffic | static + executable | WP-01 | **FAIL** today (`spawn('ffmpeg')`, `/tmp/session_*`) |
+| **AS-INV-09** | **Runtime capability invariant** | Unsupported capabilities must be **detected**, not silently assumed. Export is disabled *with an explanation* when a required capability is missing; it is never attempted and allowed to fail obscurely. | Capability probe tests; `G-31-P`/`G-31-U` **AS-16** with a declared denial mechanism and evidence class `RUNTIME-DENIED` / `TEST-INJECTED` / `NOT-EXECUTABLE`. **Never** fabricate a runtime result | executable | WP-07, WP-13 | **UNVERIFIED** (no probe exists today) |
+| **AS-INV-10** | **Server scope invariant** | The AI Studio server runtime performs **no media processing, no filesystem persistence and no background jobs**. It is a controlled AI/text gateway with bounded, cancellable, timeout-limited operations. | **AS-13 runtime investigation** (native binaries, subprocess execution, FFmpeg, packaged binaries, executable permissions, server-side media processing) classified A/B/C/D **with evidence**; static checks are supporting only. A PASS may not rest on a grep | runtime investigation + static | WP-01, WP-13 | **FAIL** today (`spawn('ffmpeg')`, `/tmp/session_*`) |
 
 ---
 
@@ -38,6 +38,15 @@ Legend — **Status:** `PASS` (verified executably) · `FAIL` (verified executab
 | **AS-INV-15** | No architecture document, work package or gate may reintroduce an external platform as a **prerequisite** without an owner-approved ADR | static doc test: no "Cloud Run required"-class statement outside the optional-deployment sections | **PASS** (after this correction pass) |
 
 ---
+
+## Evidence classification (mandatory)
+
+Every observation recorded against these invariants carries exactly one class:
+`EXECUTED-RUNTIME` · `EXECUTED-BROWSER` · `STATIC-EVIDENCE` · `DOCUMENTED-PLATFORM` ·
+`INFERRED` · `BLOCKED` · `UNKNOWN`.
+
+**A PASS may not be based solely on `INFERRED`, `STATIC-EVIDENCE` or `DOCUMENTED-PLATFORM`
+where runtime execution is required.**
 
 ## Verification rules
 

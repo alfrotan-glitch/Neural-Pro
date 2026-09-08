@@ -31,9 +31,11 @@ command ran and succeeded. `BLOCKED` requires a named missing capability and an 
 | G-18 | No fabricated success | executable | five failure modes ⇒ non-2xx | **FAIL** | WP-09 |
 | G-19 | No secret in client bundle | static | `grep` over `dist/**` | **PASS** (value) / mechanism present | WP-07 |
 | G-20 | No host-specific path/port | static | grep for `/tmp`, `localhost`, literal ports | **FAIL** | WP-07 |
-| **G-31** | **AI Studio compatibility gate** (AS-01…AS-16) | **AI Studio + browser + live-service** | [../quality/AI-STUDIO-COMPATIBILITY-GATE.md](../quality/AI-STUDIO-COMPATIBILITY-GATE.md) executed in **both** contexts | **UNVERIFIED** | WP-13 |
+| **G-31-P** | **Preview Compatibility Gate** — AS-01…AS-16 in Context P (AI Studio Preview / Build mode) | **AI Studio + browser + live-service** | per-criterion record: status + evidence class + evidence ref + timestamp + context + reproducibility | **UNVERIFIED** | WP-13 |
+| **G-31-U** | **Published App Compatibility Gate** — AS-01…AS-16 in Context U (published AI Studio app) | **AI Studio + browser + live-service** | same, recorded separately | **UNVERIFIED** | WP-13 |
+| **G-31** | **AI Studio compatibility gate** | derivation | **PASS iff G-31-P = PASS AND G-31-U = PASS**; otherwise FAIL (evidence of incompatibility), BLOCKED (runtime access/evidence unavailable) or UNKNOWN (incomplete evidence but execution possible) | **UNVERIFIED** | WP-13 |
 | G-21 | Server boots under `PORT` | deployment (**optional external**) | optional container run with `PORT=8080` → `/api/health` 200 | **BLOCKED** (optional) | WP-07 |
-| G-32 | No mandatory external-platform dependency (static + runtime) | static + AI Studio | no `spawn`, no native dep, no external service required for the full flow | **FAIL** today (`spawn('ffmpeg')`) | WP-01 |
+| G-32 | No mandatory external-platform dependency (static + runtime) | static + AI Studio | no unauthorised external **media-processing/rendering/export** dependency; Gemini AI operations are permitted. Static: no `spawn`, no native dep | **FAIL** today (`spawn('ffmpeg')`) | WP-01 |
 | G-22 | Production static serving | deployment (**optional external**) | `NODE_ENV=production` + deep-route fetch | **UNVERIFIED** (optional) | WP-07 |
 | G-23 | Graceful shutdown | deployment (**optional external**) | `SIGTERM` → exit 0 within 10 s | **UNVERIFIED** (optional) | WP-07 |
 | G-24 | Live AI smoke | live-service | real script + TTS call recorded | **BLOCKED** (no egress) | WP-10 |
@@ -50,7 +52,7 @@ command ran and succeeded. `BLOCKED` requires a named missing capability and an 
 |---|---|
 | **NOT READY** | Any P0 gate FAIL, or the behavioural suite does not exist |
 | **ENGINEERING READY** | G-01…G-08, G-10…G-20, G-27…G-30 PASS; G-09/G-21…G-26 may be BLOCKED/UNVERIFIED with named owners |
-| **RUNTIME CERTIFIED** | ENGINEERING READY **and G-31 PASS in both contexts** and G-09, G-24, G-25 executed and PASS. G-21…G-23 are **optional external-deployment** gates and are not required |
+| **RUNTIME CERTIFIED** | ENGINEERING READY **and G-31 = PASS** (which requires **G-31-P = PASS AND G-31-U = PASS**) and G-09, G-24, G-25 executed and PASS. G-21…G-23 are **optional external-deployment** gates and are not required |
 | **PRODUCTION READY** | RUNTIME CERTIFIED, plus monitoring/alerting live (RB-01…RB-09 exercised), a rollback rehearsed, and a soak period with no P0/P1 |
 
 ## Current assessment

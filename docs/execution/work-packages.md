@@ -17,7 +17,7 @@ Index. Each WP has a self-contained handoff packet in [agents/](agents/WP-00.md)
 | [WP-10](agents/WP-10.md) | Recovery & runtime certification | W5 + executed certification | WP-06, all repairs | P1 | Medium |
 | [WP-11](agents/WP-11.md) | Resource lifecycle & duration authority | INV-008, INV-011, INV-013 | WP-05 | P1 | Medium |
 | [WP-12](agents/WP-12.md) | Hygiene, i18n, determinism, shim removal | Clean tree, localised strings, shims gone | WP-11 | P2 | Low |
-| [WP-13](agents/WP-13.md) | AI Studio Runtime Verification | Resolve every RUNTIME-UNKNOWN by execution inside AI Studio; produce G-31 evidence | WP-00, WP-07 | P1 | Medium |
+| [WP-13](agents/WP-13.md) | AI Studio Runtime Verification | Resolve every RUNTIME-UNKNOWN by execution inside AI Studio; produce **G-31-P** and **G-31-U** evidence | **WP-00 (hard)**; WP-07 = *optional enrichment* | P1 | Medium |
 
 ## Runtime reconciliation (2026-09-09)
 

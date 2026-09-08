@@ -10,7 +10,7 @@ External deployment (container/Cloud Run) is demoted to an **optional** stage.
 | Level | Requires |
 |---|---|
 | ENGINEERING READY | static + executable gates pass; AI Studio and browser gates may be `BLOCKED` with named owners |
-| **RUNTIME CERTIFIED** | ENGINEERING READY **and** every stage below executed with a recorded result — **including G-31 (AI Studio compatibility) PASS in both contexts** |
+| **RUNTIME CERTIFIED** | ENGINEERING READY **and** every stage below executed with a recorded result — **including **G-31 = PASS**, i.e. **G-31-P (Preview) = PASS AND G-31-U (Published) = PASS**** |
 | PRODUCTION READY | RUNTIME CERTIFIED + monitoring/alerting live + rollback rehearsed + soak clean |
 
 Certification is **per-surface**. `RUNTIME CERTIFIED` without a surface qualifier means every
@@ -21,7 +21,7 @@ G-31 is not PASS, because "runtime" *means* the AI Studio Web App runtime.
 
 ## 2. Certification sequence
 
-### Stage A — Environment readiness (WP-00 / WP-07)
+### Stage A — Environment readiness (WP-00 / WP-13)
 1. Node matching `engines`; `npm ci` in a clean environment. Record exit code.
 2. Chromium (Playwright) with WebCodecs enabled; record the version and the
    `VideoEncoder.isConfigSupported` matrix.
@@ -39,13 +39,22 @@ G-31 is not PASS, because "runtime" *means* the AI Studio Web App runtime.
 10. `npm run build` → success; inspect `dist/` size and asset list; assert no secret in assets
 
 ### Stage C — **AI Studio compatibility gate (WP-13)** — the decisive stage
-11. Open the project in AI Studio Build mode; run `GET /api/runtime/capabilities`.
-12. Execute **G-31 / AS-01…AS-16** in the **preview frame** (context P). Record per-criterion
-    evidence.
+11. Open the project in AI Studio Build mode. If WP-07 has landed, call
+    `GET /api/runtime/capabilities` and correlate it with the browser probe; **if WP-07 has not
+    landed, mark server-side capability evidence UNAVAILABLE and continue** (WP-07 is optional
+    enrichment, not a dependency of this stage).
+12. Build the **deterministic fixture** and record its content hash. Execute **AS-01…AS-16** in
+    the **preview frame (Context P)**. Record per-criterion: status
+    (`PASS`/`FAIL`/`BLOCKED`/`UNKNOWN`/`NOT-APPLICABLE`), evidence class
+    (`EXECUTED-RUNTIME`/`EXECUTED-BROWSER`/`STATIC-EVIDENCE`/`DOCUMENTED-PLATFORM`/`INFERRED`/`BLOCKED`/`UNKNOWN`),
+    evidence reference, timestamp, context and reproducibility result. **No runtime PASS may rest
+    on static or documentary evidence alone.**
 13. **Publish** the app (Starter Tier suffices). Re-execute AS-01…AS-16 against the published
-    URL (context U).
-14. Resolve every `P-01…P-06` runtime unknown with the recorded result.
-15. Write `reports/ai-studio-compatibility-<date>.json` + evidence artefacts.
+    URL (**Context U**), recording evidence **separately** — never merging the two contexts.
+14. Resolve every `P-01…P-06` runtime unknown in each context; classify any material
+    Preview-vs-Published difference as a finding and certify the contexts separately.
+15. Write `reports/ai-studio-compatibility-<date>.json` + evidence artefacts; **derive
+    `G-31-P`, `G-31-U` and `G-31` mechanically** from the per-criterion records.
 16. Any FAIL becomes a defect with an owning WP. Any BLOCKED names the missing capability and an
     owner.
 

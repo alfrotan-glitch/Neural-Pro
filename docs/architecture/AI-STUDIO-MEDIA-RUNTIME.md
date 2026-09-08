@@ -84,14 +84,16 @@ mediate it. The residual AI Studio risk is the **frame** (rows `P-01`, `P-02`).
 
 | ID | Unknown | Why it matters | Verification (WP-13) |
 |---|---|---|---|
-| `P-01` | Does the AI Studio preview frame permit **downloads** (`<a download>` / `allow-downloads`)? | The entire export deliverable is delivered by `link.click()` on a blob URL (`VideoStudioPro.tsx:619`, `InspectorEngine.tsx:473`, `ExportToast.tsx:121`, `RenderPipeline.ts:179`). If downloads are blocked in the frame, **browser export produces an artifact the user cannot save**. | Execute an export in the AI Studio preview and on a published URL; record whether the file lands on disk |
-| `P-02` | Is **storage (IndexedDB/localStorage) partitioned or blocked** in the frame? | If the frame is cross-origin/third-party relative to the top-level page, storage may be partitioned or denied → projects would not survive reload | Probe `indexedDB.open()` + `navigator.storage.estimate()` in preview and published contexts; same-document and cross-session |
-| `P-03` | Are **WebCodecs / OfflineAudioContext** available and unthrottled in the frame? | Export correctness | `VideoEncoder.isConfigSupported` matrix + a 300-frame encode in both contexts |
+| `P-01` | Can the AI Studio Preview and the Published App **initiate and complete export artifact delivery to the user/browser download surface**? | The entire export deliverable is delivered by `link.click()` on a blob URL (`VideoStudioPro.tsx:619`, `InspectorEngine.tsx:473`, `ExportToast.tsx:121`, `RenderPipeline.ts:179`). If delivery is blocked, the artifact exists but the user cannot obtain it | **Observable delivery contract — must NOT require OS filesystem visibility.** Record four sub-observations: `P-01.a` artifact produced (blob exists, decodes to expected frames/duration) · `P-01.b` delivered to browser/user (download initiated or explicit save completed) · `P-01.c` download permitted (completed, or refused with an observable reason) · `P-01.d` direct filesystem visibility (informational only — `NOT-EXPOSED` / `EXPOSED`). **PASS = `a` AND `b` with `EXECUTED-RUNTIME`/`EXECUTED-BROWSER` evidence.** See [../execution/agents/WP-13.md](../execution/agents/WP-13.md) §6 |
+| `P-02` | Is **storage (IndexedDB/localStorage) partitioned or blocked** in the frame? | If the frame is cross-origin/third-party relative to the top-level page, storage may be partitioned or denied → projects would not survive reload | Probe `indexedDB.open()` + a round-trip write/read + `navigator.storage.estimate()` in **both** contexts; verify survival across reload **and** across a new session |
+| `P-03` | Are **WebCodecs / OfflineAudioContext** available, initializable, performant and **free of undisclosed throttling** in the frame? | Export correctness and export feasibility on long projects | **Ten sub-observations, each recorded separately:** (1) API availability, (2) initialization success, (3) representative workload (≥ 300 frames), (4) sustained workload where practical, (5) completion/failure behaviour, (6) timing measurements, (7) resource behaviour where observable, (8) Preview-vs-Published comparison, (9) any runtime-imposed throttling or timeout, (10) **if throttling cannot be measured, mark it `UNKNOWN`**. **Do not infer absence of throttling from a small successful test; three agreeing runs are not evidence about throttling** |
 | `P-04` | Does the frame impose a **CSP** that blocks blob: workers/canvas or `media-src`? | Canvas capture and media decode | Capture `console`/CSP report events during a full export |
 | `P-05` | Proxy behaviour for **long requests** and **abort** | Timeouts must be client-enforced anyway | Time an intentionally slow endpoint; measure whether the client sees a timeout or a proxy error |
-| `P-06` | Do the **dev container** and the **published app** differ in CPU/memory/timeout? | Export may pass in preview and fail when published | Run the same export in both; record duration, peak memory, failures |
+| `P-06` | Do the **dev container (Context P)** and the **published app (Context U)** differ? | Export may pass in preview and fail when published | Compare **thirteen measurable dimensions** in both contexts: boot success · server availability · Gemini access · browser APIs · storage · media loading · export · download/delivery · request duration · cancellation · CSP · network behaviour · capability report. **If a material difference exists, record separate certification status (`G-31-P` / `G-31-U`)** |
 
-None of the above may be answered by reasoning. Each is a **gate item (G-31)**.
+None of the above may be answered by reasoning. Each is a **gate item**, evaluated **independently** in **Context P** (Preview) and **Context U** (Published) — see `G-31-P` and `G-31-U` in [../quality/AI-STUDIO-COMPATIBILITY-GATE.md](../quality/AI-STUDIO-COMPATIBILITY-GATE.md).
+
+Every observation carries an evidence class: `EXECUTED-RUNTIME` · `EXECUTED-BROWSER` · `STATIC-EVIDENCE` · `DOCUMENTED-PLATFORM` · `INFERRED` · `BLOCKED` · `UNKNOWN`. A runtime PASS may not rest on static or documentary evidence alone.
 
 ---
 
@@ -188,7 +190,19 @@ failed export (`EXPORT_DELIVERY_FAILED`), not a completed one (INV-010).
 ones that determine whether it works at all. Under ADR-000, uncertainty is not converted into
 an architectural assumption.
 
-> **FFmpeg is therefore classified `D — unsupported for the target runtime`.**
+> **Current architectural classification: `D — unsupported for the target runtime`** (the
+> position ADR-016 is built on).
+>
+> **This classification is PROVISIONAL and must be confirmed, not assumed.** Gate criterion
+> **AS-13** is a *runtime capability investigation*: it determines whether the AI Studio runtime
+> permits native binaries, subprocess execution, FFmpeg, packaged binaries, executable
+> permissions and server-side media processing, and classifies the result **A / B / C / D with
+> recorded evidence**. AS-13 does **not** presuppose the answer and does **not** PASS because a
+> static grep found no `spawn`.
+>
+> If AS-13 finds a capability the architecture forbids → informational; the ADR-016 decision
+> stands unless an ADR changes it. If AS-13 finds that the architecture **uses** a capability the
+> runtime does not support → a defect is filed with evidence and an owning WP.
 > No `ffmpeg-static` installation, no `spawn`, no server-side encode. The current
 > `/api/export/*` pipeline is removed (ADR-004, rationale updated by ADR-015).
 

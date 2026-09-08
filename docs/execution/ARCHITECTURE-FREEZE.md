@@ -177,11 +177,37 @@ design above, so implementation may proceed while they are resolved.
 
 | Obligation | Owner | Gate |
 |---|---|---|
-| Execute G-31 / AS-01…AS-16 in the **preview frame** | WP-13 | G-31 (context P) |
-| Execute G-31 / AS-01…AS-16 on a **published URL** | WP-13 | G-31 (context U) |
-| Resolve `P-01…P-06` with recorded evidence | WP-13 | — |
+| Execute AS-01…AS-16 in the **preview frame**, recorded per criterion with evidence class | WP-13 | **G-31-P** |
+| Execute AS-01…AS-16 on a **published URL**, recorded per criterion with evidence class | WP-13 | **G-31-U** |
+| Resolve `P-01…P-06` with recorded evidence and explicit evidence classifications | WP-13 | — |
 | Live Gemini smoke with a real key | WP-10 | Stage F |
 | Browser export + pixel parity | WP-06/WP-10 | Stage E |
+
+**WP-13's only hard dependency is WP-00.** WP-07 (`/api/runtime/capabilities`) is **optional
+enrichment**: if it has landed, WP-13 consumes and correlates it; if not, server-side capability
+evidence is marked unavailable and WP-13 continues.
+
+## Verification precision rules (normative)
+
+1. **`G-31-P` and `G-31-U` are independent.** `G-31 = PASS` only if both pass. Preview PASS +
+   Published FAIL ⇒ `G-31 = FAIL`. Either context unavailable ⇒ `G-31 = BLOCKED`.
+2. **Every observation carries one evidence class** — `EXECUTED-RUNTIME` · `EXECUTED-BROWSER` ·
+   `STATIC-EVIDENCE` · `DOCUMENTED-PLATFORM` · `INFERRED` · `BLOCKED` · `UNKNOWN`.
+3. **No runtime PASS from static, documentary or inferred evidence.** No criterion passes because
+   the repository looks compatible, Google documents the capability, or a local run succeeded.
+4. **`P-01` is a delivery contract, not a filesystem guarantee.** `P-01.a` artifact produced +
+   `P-01.b` delivered to the browser/user are the PASS conditions; `P-01.d` direct filesystem
+   visibility is informational only.
+5. **AS-13 is an investigation, not a presumption** (native binaries, subprocess, FFmpeg,
+   packaged binaries, exec permissions, server-side media processing → classify A/B/C/D).
+6. **AS-14 prohibits unauthorised external *media-processing* dependencies.** Gemini and approved
+   AI operations remain legitimate external services.
+7. **AS-16 declares its denial mechanism** and records `RUNTIME-DENIED` / `TEST-INJECTED` /
+   `NOT-EXECUTABLE`. Untestable capability denial is recorded, never fabricated.
+8. **The fixture is deterministic** (no remote media, no prior Blob URLs, no random waveforms, no
+   timestamps, no unstable AI output, no external hosting, no prior browser state).
+9. **WP-13 observes and records; it does not repair.** Every FAIL preserves evidence, names an
+   owning WP, an affected invariant and a severity, then stops.
 
 ## Conditions that reopen this freeze
 
