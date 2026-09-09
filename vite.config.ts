@@ -7,8 +7,11 @@ export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
     plugins: [react(), tailwindcss()],
+    // No secret is ever inlined into the client bundle. `GEMINI_API_KEY` lives in
+    // the server runtime only (ARCHITECTURE FREEZE → Gemini; ADR-008): the browser
+    // reaches AI exclusively through the validated `/api` allowlist.
     define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+      'process.env.NEURAL_CLIENT_RUNTIME': JSON.stringify('ai-studio-web-app'),
     },
     resolve: {
       alias: {

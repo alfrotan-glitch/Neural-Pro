@@ -13,11 +13,13 @@
     "typecheck": "tsc --noEmit",
     "verify:phaseK": "node scripts/verify-phaseK.cjs",
     "verify:phaseL": "node scripts/verify-phaseL.cjs",
-    "verify:build-env": "node scripts/verify-build-environment.cjs"
+    "verify:build-env": "node scripts/verify-build-environment.cjs",
+    "test:server": "node --import tsx --test tests/server/*.test.mts",
+    "test:workflow": "node --import tsx --test tests/unit/workflow/*.test.mts",
+    "test:unit": "node --import tsx --test tests/server/*.test.mts tests/unit/workflow/*.test.mts tests/unit/ai/*.test.mts"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
-    "better-sqlite3": "^12.4.1",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "html-to-image": "^1.11.13",
