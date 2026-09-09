@@ -20,7 +20,7 @@ Machine-readable summary table, then one section per risk with detail.
 | R-004 | AI failures surface as successful fabricated output | P1 | High | users ship fake content | WP-09 | failure-mode test matrix | CLOSED |
 | R-005 | Export/preview transform divergence | P1 | High | 662 px visual mismatch | WP-03 | `repro-transform-order.mts` → 0 | OPEN |
 | R-006 | Export does not clip cover-scaled media | P1 | High | up to 991.7 px overflow | WP-03 | `repro-media-cover-clip.mts` → 0 | OPEN |
-| R-007 | Uploaded media lost on reload (blob URLs persisted) | P1 | High | data loss | WP-05 | save/reload/restore test | OPEN |
+| R-007 | Uploaded media lost on reload (blob URLs persisted) | P1 | High | data loss | WP-05 | save/reload/restore test | **CLOSED** |
 | R-008 | Export cancellation is broken | P1 | High | stuck jobs, wasted renders | WP-04 | `repro-export-queue.mts` → 0 | OPEN |
 | R-009 | Generated audio truncated to the previous project duration | P1 | Medium | 15 min → 45 s export | WP-11 | duration-authority test | OPEN |
 | R-010 | Test suite provides no behavioural assurance | P1 | High | regressions invisible | WP-06 | suite composition test | OPEN |
@@ -131,14 +131,21 @@ Machine-readable summary table, then one section per risk with detail.
   shared corner-radius constant.
 * **Owner WP:** WP-03 · **Verification:** repro exits 0 + aspect-ratio grid.
 
-### R-007 — Uploaded media lost on reload
-* **Impact:** every user-uploaded asset becomes unresolvable after a refresh; export silently
-  renders placeholders; save reports success.
-* **Evidence:** `VirtualizedTimeline.handleLinkOrReplaceMediaFile` (~904) and
-  `ResourceSidebar.handleFileUpload` (506) assign `URL.createObjectURL(...)` into clip
-  properties, which are serialised to `localStorage`.
-* **Mitigations:** ADR-006; `AssetId` + IndexedDB; relink UI; export refuses missing assets.
-* **Owner WP:** WP-05 · **Verification:** save → reload → resolve; no `blob:` in documents.
+### R-007 — Uploaded media lost on reload — **CLOSED**
+* **Impact (was):** every user-uploaded asset became unresolvable after a refresh; export
+  silently rendered placeholders; save reported success.
+* **Evidence (was):** `VirtualizedTimeline.handleLinkOrReplaceMediaFile` (~904) and
+  `ResourceSidebar.handleFileUpload` (506) assigned `URL.createObjectURL(...)` into clip
+  properties, which were serialised to `localStorage`.
+* **Mitigations landed:** ADR-006; `AssetId` + IndexedDB (`src/domain/assets/**`,
+  `src/infra/persistence/**`); relink UI; export refuses missing assets; a portable
+  `.neuralpro` bundle for profiles where in-frame storage is denied or partitioned.
+* **Residual:** the IndexedDB *transport* itself is unverified in a real browser (no Chromium
+  in this environment) — tracked by WP-06, not by this risk. Object-URL revocation in
+  `App.tsx` (D-014) is WP-09 and is a leak risk, not a data-loss one.
+* **Owner WP:** WP-05 · **Verification:** `tests/persistence/**` — 10 files, 109 assertion groups;
+  save → reload → resolve (`01`, `06`), no `blob:` in documents (`02`, `07`), bundle round trip
+  into an empty profile (`08`), measured duration authority (`09`).
 
 ### R-008 — Export cancellation broken
 * **Impact:** users cannot stop an export; a cancelled job occupies the serialised pipeline.

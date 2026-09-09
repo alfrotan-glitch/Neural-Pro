@@ -22,8 +22,8 @@ command ran and succeeded. `BLOCKED` requires a named missing capability and an 
 | G-09 | Render parity L2 (pixel) | browser | Playwright + pixelmatch report | **BLOCKED** (no browser runtime) | WP-06 |
 | G-10 | Resource balance | executable | probe zero across all scenarios | **FAIL** | WP-11 |
 | G-11 | Workflow terminal states | executable | cancel/fault at every step | **FAIL** | WP-04 |
-| G-12 | Persistence round-trip | executable | save → reload → resolve | **FAIL** (D-006) | WP-05 |
-| G-13 | No blob URLs persisted | executable | serialise assertion | **FAIL** | WP-05 |
+| G-12 | Persistence round-trip | executable | save → reload → resolve | **PASS** — `tests/persistence/01`,`06`,`08`,`09` (incl. a `.neuralpro` bundle round trip into an empty profile) | WP-05 |
+| G-13 | No blob URLs persisted | executable | serialise assertion | **PASS** — `tests/persistence/02`,`07`; static guard fails on any `properties.*Url =` write | WP-05 |
 | G-14 | FPS single authority | executable | fps propagation at 24/30/60 | **FAIL** | WP-11 |
 | G-15 | Measured duration authority | executable | import + generated-audio duration | **FAIL** (D-024) | WP-11 |
 | G-16 | AI abuse surface closed | executable + static | crafted body ⇒ 400; no model id outside registry | **FAIL** | WP-01 |
