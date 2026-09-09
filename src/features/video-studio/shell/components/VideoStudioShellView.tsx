@@ -5,6 +5,8 @@ import {
   ArrowLeft,
   Download,
   Save,
+  Package,
+  FolderOpen,
   Check,
   Sun,
   Moon,
@@ -38,6 +40,10 @@ interface VideoStudioShellViewProps {
   onUndo: () => void;
   onRedo: () => void;
   onSave: () => void;
+  /** Saves the project and downloads a portable `.neuralpro` bundle (document + media). */
+  onDownloadBundle?: () => void;
+  /** Restores a `.neuralpro` bundle chosen from disk. */
+  onImportBundle?: (file: File) => void;
   onToggleTheme: () => void;
   onShowQueue: () => void;
   onShowExport: () => void;
@@ -68,6 +74,8 @@ export const VideoStudioShellView: React.FC<VideoStudioShellViewProps> = ({
   onUndo,
   onRedo,
   onSave,
+  onDownloadBundle,
+  onImportBundle,
   onToggleTheme,
   onShowQueue,
   onShowExport,
@@ -77,6 +85,8 @@ export const VideoStudioShellView: React.FC<VideoStudioShellViewProps> = ({
   onCloseExportProgress,
   getProgressStatusMessage,
 }) => {
+  const bundleInputRef = React.useRef<HTMLInputElement>(null);
+
   return (
     <div className={`h-full w-full flex flex-col bg-[#050508] text-gray-200 overflow-hidden font-sans relative ${theme === 'light' ? 'theme-light' : 'theme-dark'}`}>
       {toastMessage && (
@@ -142,6 +152,43 @@ export const VideoStudioShellView: React.FC<VideoStudioShellViewProps> = ({
             <Save className="w-3.5 h-3.5" />
             <span>Save</span>
           </button>
+
+          {(onDownloadBundle || onImportBundle) && (
+            <>
+              <input
+                ref={bundleInputRef}
+                type="file"
+                accept=".neuralpro,application/zip"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  // Reset first: picking the same file twice must still fire onChange.
+                  event.target.value = '';
+                  if (file && onImportBundle) onImportBundle(file);
+                }}
+              />
+              {onImportBundle && (
+                <button
+                  onClick={() => bundleInputRef.current?.click()}
+                  className="px-3 py-1.5 rounded-lg text-[10px] font-bold text-gray-300 hover:text-white hover:bg-white/5 border border-white/5 hover:border-white/10 transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Restore a portable .neuralpro project bundle"
+                >
+                  <FolderOpen className="w-3.5 h-3.5" />
+                  <span>Open Bundle</span>
+                </button>
+              )}
+              {onDownloadBundle && (
+                <button
+                  onClick={onDownloadBundle}
+                  className="px-3 py-1.5 rounded-lg text-[10px] font-bold text-gray-300 hover:text-white hover:bg-white/5 border border-white/5 hover:border-white/10 transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Download a portable .neuralpro bundle: the project file plus every media file it uses"
+                >
+                  <Package className="w-3.5 h-3.5" />
+                  <span>Bundle</span>
+                </button>
+              )}
+            </>
+          )}
 
           <button
             onClick={onShowQueue}

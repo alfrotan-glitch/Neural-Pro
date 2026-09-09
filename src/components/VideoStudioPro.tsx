@@ -27,7 +27,19 @@ import { createTrackSnapshotCommand } from '../features/video-studio/project/com
 import { selectAllClips, selectActualDuration } from '../features/video-studio/project/selectors/projectSelectors';
 import { renderProjectAudio } from '../features/video-studio/audio/services/projectAudioRenderService';
 import { getTransportClock } from '../features/video-studio/playback/services/useTransportClock';
-import { loadProjectFromStorage, saveProjectToStorage } from '../features/video-studio/project/services/projectPersistenceService';
+import {
+  createCurrentProjectBundle,
+  importProjectBundleIntoStore,
+  loadCurrentProject,
+  releaseCurrentProjectMedia,
+  saveCurrentProject,
+} from '../features/video-studio/project/services/projectSaveController';
+import type { MediaMissingWarning } from '../infra/persistence/mediaHydration';
+import { findUnresolvedMediaClips, registerGeneratedMediaFromUrl } from '../features/video-studio/project/services/projectPersistenceService';
+import { createDeterministicWaveform } from '../core/engine/deterministicWaveform';
+import { RelinkMediaDialog } from '../ui/workspace/RelinkMediaDialog';
+import { StorageQuotaDialog } from '../ui/workspace/StorageQuotaDialog';
+import type { QuotaRecovery } from '../features/video-studio/project/services/projectSaveController';
 
 export interface VideoStudioProProps {
   projectName: string;
@@ -90,6 +102,8 @@ export default function VideoStudioPro({ projectName, initialScript, audioUrl, o
   const canRedo = future.length > 0;
   
   // Advanced export configuration states
+  const [mediaWarnings, setMediaWarnings] = useState<MediaMissingWarning[]>([]);
+  const [quotaRecovery, setQuotaRecovery] = useState<QuotaRecovery | null>(null);
   const [showExportModal, setShowExportModal] = useState<boolean>(false);
   const [showQueueModal, setShowQueueModal] = useState<boolean>(false);
   const [exportQuality, setExportQuality] = useState<ExportResolution>('1080p');
@@ -216,17 +230,25 @@ export default function VideoStudioPro({ projectName, initialScript, audioUrl, o
     };
   }, []);
 
-  // Sync generated podcast audio directly to background audio track on the timeline
+  /**
+   * Sync generated podcast audio onto the background audio track.
+   *
+   * The generated WAV is registered as a durable asset first, so the clip
+   * references an AssetId and survives a reload; the object URL is only the
+   * runtime handle. The waveform preview is derived deterministically from the
+   * clip id (persistence rule R5: no persisted value may be random).
+   */
   useEffect(() => {
     if (audioUrl) {
       const state = useProjectStore.getState();
+      const clipId = 'generated_podcast_audio_clip';
       const updatedTracks = state.tracks.map(track => {
         if (track.id === 'track_audio_bg') {
           return {
             ...track,
             clips: [
               {
-                id: 'generated_podcast_audio_clip',
+                id: clipId,
                 sourceId: 'generated_podcast_audio',
                 startAt: 0.0,
                 duration: state.totalDuration,
@@ -241,7 +263,7 @@ export default function VideoStudioPro({ projectName, initialScript, audioUrl, o
                   pan: 0,
                   noiseReduction: false,
                   enhanceVoice: false,
-                  waveformData: Array.from({ length: 45 }, () => Math.floor(Math.random() * 30) + 10)
+                  waveformData: createDeterministicWaveform(clipId, 45)
                 }
               }
             ]
@@ -251,6 +273,52 @@ export default function VideoStudioPro({ projectName, initialScript, audioUrl, o
       });
       state.executeCommand(createTrackSnapshotCommand('Add Generated Podcast Audio', state.tracks, updatedTracks));
       state.showToast("🎙️ Synchronized generated podcast audio directly to Video Studio!");
+
+      // Store the generated audio durably and point the clip at its AssetId.
+      void registerGeneratedMediaFromUrl({
+        url: audioUrl,
+        fileName: 'Generated Podcast Audio.wav',
+        producer: 'podcast-tts',
+      })
+        .then((registered) => {
+          if (!registered) {
+            useProjectStore.getState().showToast('⚠️ Generated audio could not be stored; it will not survive a reload.');
+            return;
+          }
+          const latest = useProjectStore.getState();
+          // `sourceMediaDuration` is a MEASURED value (contract R3: measured once,
+          // then authoritative). clip.duration here is state.totalDuration — the
+          // previous project's length, not this audio's — so falling back to it
+          // would launder a guess into the field every duration authority trusts,
+          // and persist it. When measurement fails the field is simply absent and
+          // the clip falls back to its trim range.
+          const measuredDuration =
+            typeof registered.record.duration === 'number' &&
+            Number.isFinite(registered.record.duration) &&
+            registered.record.duration > 0
+              ? registered.record.duration
+              : null;
+          const linked = latest.tracks.map((track) => ({
+            ...track,
+            clips: track.clips.map((clip) =>
+              clip.id === clipId
+                ? {
+                    ...clip,
+                    properties: {
+                      ...clip.properties,
+                      audioAssetId: registered.assetId,
+                      audioUrl: registered.objectUrl,
+                      ...(measuredDuration === null ? {} : { sourceMediaDuration: measuredDuration }),
+                    },
+                  }
+                : clip,
+            ),
+          }));
+          latest.executeCommand(
+            createTrackSnapshotCommand('Store Generated Podcast Audio', latest.tracks, linked),
+          );
+        })
+        .catch(() => undefined);
     }
   }, [audioUrl]);
 
@@ -316,30 +384,74 @@ export default function VideoStudioPro({ projectName, initialScript, audioUrl, o
     showToast(`➕ Added: ${asset.name}`);
   };
 
+  /**
+   * Save is durable (IndexedDB) and never lies: media that could not be captured
+   * comes back as a warning that is surfaced instead of a green "Saved".
+   */
   const handleSave = () => {
-    try {
-      saveProjectToStorage(localStorage, projectName, useProjectStore.getState());
-      showToast("💾 Saved project successfully!");
-    } catch (error) {
-      console.error('Failed to save Video Studio project:', error);
-      showToast("❌ Saving the project failed.");
-    }
+    void saveCurrentProject(projectName).then((outcome) => {
+      if (outcome.warnings.length > 0) setMediaWarnings(outcome.warnings);
+      // A quota failure is actionable, so it opens the recovery affordance instead
+      // of only leaving a toast behind.
+      if (outcome.quota) setQuotaRecovery(outcome.quota);
+    });
   };
 
+  /**
+   * Downloads a portable `.neuralpro` bundle (document + every media file).
+   * The URL minted here is a download handle only: it never reaches clip
+   * properties, and it is revoked as soon as the browser has taken the bytes.
+   */
+  const handleDownloadBundle = () => {
+    void createCurrentProjectBundle(projectName).then((outcome) => {
+      if (!outcome.ok || !outcome.blob) return;
+      const url = URL.createObjectURL(outcome.blob);
+      try {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = outcome.fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } catch (error) {
+        showToast('❌ The browser blocked the download.');
+        console.error('Bundle download failed', error);
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    });
+  };
+
+  /** Restores a `.neuralpro` bundle chosen by the user. */
+  const handleImportBundle = (file: File) => {
+    void importProjectBundleIntoStore(file).then((outcome) => {
+      if (outcome.ok && outcome.missingAssets.length > 0) {
+        setMediaWarnings(findUnresolvedMediaClips(useProjectStore.getState().tracks).map((clip) => ({
+          clipId: clip.clipId,
+          trackId: clip.trackId,
+          clipName: clip.clipName,
+          assetId: null,
+          reason: 'ASSET_MISSING' as const,
+          message: `The bundle did not contain the media for "${clip.clipName ?? clip.clipId}".`,
+        })));
+      }
+    });
+  };
+
+  // Restore the project (or migrate a legacy localStorage save) on mount, and
+  // revoke every minted media handle on unmount so a long session cannot leak.
   useEffect(() => {
-    try {
-      const loadedProject = loadProjectFromStorage(
-        localStorage,
-        projectName,
-        useProjectStore.getState(),
-      );
-      if (!loadedProject) return;
-      hydrateProject(loadedProject);
-    } catch (error) {
-      console.error('Failed to load saved Video Studio project:', error);
-      showToast("❌ Saved project is invalid and was not loaded.");
-    }
-  }, [projectName, hydrateProject, showToast]);
+    let cancelled = false;
+    void loadCurrentProject(projectName).then((outcome) => {
+      if (cancelled) return;
+      if (outcome.result?.warnings.length) setMediaWarnings(outcome.result.warnings);
+    });
+
+    return () => {
+      cancelled = true;
+      void releaseCurrentProjectMedia();
+    };
+  }, [projectName]);
 
   const getEstimatedSize = () => {
     const selectedVideoBitrate = useExportStore.getState().videoBitrate;
@@ -368,6 +480,23 @@ export default function VideoStudioPro({ projectName, initialScript, audioUrl, o
   };
 
   const beginExport = useCallback((settings: ExportJob['settings']) => {
+    const unresolved = findUnresolvedMediaClips(useProjectStore.getState().tracks);
+    if (unresolved.length > 0) {
+      // Never render placeholders for missing media: name the clips and offer relink.
+      setMediaWarnings(
+        unresolved.map((entry) => ({
+          clipId: entry.clipId,
+          trackId: entry.trackId,
+          clipName: entry.clipName,
+          assetId: null,
+          reason: 'ASSET_MISSING',
+          message: `Export blocked: the media for "${entry.clipName}" is not available.`,
+        })),
+      );
+      showToast(`⛔ Export blocked: ${unresolved.length} clip(s) have no media. Relink them first.`);
+      setShowExportModal(false);
+      return;
+    }
     setShowExportModal(false);
     activeExportSettingsRef.current = structuredClone(settings);
     setExportQuality(settings.resolution);
@@ -707,6 +836,7 @@ export default function VideoStudioPro({ projectName, initialScript, audioUrl, o
   };
 
   return (
+    <>
     <VideoStudioShellView
       projectName={projectName}
       theme={theme}
@@ -727,6 +857,8 @@ export default function VideoStudioPro({ projectName, initialScript, audioUrl, o
       onUndo={undo}
       onRedo={redo}
       onSave={handleSave}
+      onDownloadBundle={handleDownloadBundle}
+      onImportBundle={handleImportBundle}
       onToggleTheme={() => {
         const newTheme = theme === 'light' ? 'dark' : 'light';
         setTheme(newTheme);
@@ -749,5 +881,16 @@ export default function VideoStudioPro({ projectName, initialScript, audioUrl, o
       }}
       getProgressStatusMessage={getProgressStatusMessage}
     />
+    {mediaWarnings.length > 0 && (
+      <RelinkMediaDialog warnings={mediaWarnings} onClose={() => setMediaWarnings([])} />
+    )}
+    {quotaRecovery && (
+      <StorageQuotaDialog
+        quota={quotaRecovery}
+        onClose={() => setQuotaRecovery(null)}
+        onRetry={handleSave}
+      />
+    )}
+    </>
   );
 }
