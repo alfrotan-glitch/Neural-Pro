@@ -117,15 +117,15 @@ Always logged: `requestId`, operation, status, latency, error code, counts.
 
 | Gap | ID | WP |
 |---|---|---|
-| Unauthenticated verbatim Gemini passthrough | S-1 / D-002 | WP-01 |
-| Export API open outside production | S-2 / D-003 | WP-01 |
-| Failures return 200 with fabricated content | S-3 / D-009 | WP-09 |
-| Disk exhaustion via frame upload | S-4 | WP-01 |
+| Unauthenticated verbatim Gemini passthrough | S-1 / D-002 | WP-01 — **closed 2026-09-09**: route deleted, `410 Gone` (`SHIM-004`); crafted `{model,config}` ⇒ 400 |
+| Export API open outside production | S-2 / D-003 | WP-01 — **closed 2026-09-09**: `/api/export/*` deleted (browser-native export, ADR-004); no `spawn`, no file writes |
+| Failures return 200 with fabricated content | S-3 / D-009 | WP-09 — **closed 2026-09-09**: missing key ⇒ `503 AI_NOT_CONFIGURED`; no simulation path exists |
+| Disk exhaustion via frame upload | S-4 | WP-01 — **closed 2026-09-09**: no binary body parser and no upload routes remain |
 | Missing `.env.example` / secret guidance | S-5 | WP-07 |
-| No rate limit per token (only per IP) | S-6 | WP-01 |
-| No security headers | S-7 | WP-07 |
+| No rate limit per token (only per IP) | S-6 | WP-01 — **closed 2026-09-09**: per-IP **and** per-token buckets with `Retry-After` |
+| No security headers | S-7 | WP-07 — **closed 2026-09-09** by the WP-01 boundary (`securityHeaders`: nosniff, referrer-policy, frame-options DENY, COOP/CORP, HSTS when secure); WP-07 may extend |
 | Process/error details in responses | S-8 | WP-07 |
-| `/tmp` writes (multi-tenant-host risk) | S-9 / D-023 | WP-07 |
-| No CSP | S-10 | WP-07 |
-| Undocumented `VITE_MOCK_TTS` | S-11 | WP-09 |
+| `/tmp` writes (multi-tenant-host risk) | S-9 / D-023 | WP-07 — server half **closed 2026-09-09**: the only `/tmp` string left in the boundary is a comment in `server.ts:9`; asserted by `resolution-test/security-stage12.cjs` |
+| No CSP | S-10 | WP-07 — **closed 2026-09-09** by the WP-01 boundary (`Content-Security-Policy` in `server/middleware/requestContext.ts`); WP-07 may tighten |
+| Undocumented `VITE_MOCK_TTS` | S-11 | WP-09 — **closed 2026-09-09**: the variable and its mock-silence path are deleted from `src/`; it now appears only in the historical defect tables of `docs/workflows/tts.md` |
 | No dependency/secret scanning in CI | S-12 | WP-07 |

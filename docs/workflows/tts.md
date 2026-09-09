@@ -30,7 +30,7 @@ Podcast script ready → **Generate Audio** (subscribe generator) or per-line TT
 | D-009 | Any server failure returns 200 with `Buffer.alloc(44 + 24000*2)` — exactly **1.00 s of silence** | `server.ts:216,236` + `generateSimulatedContent` |
 | – | WAV header hard-codes 24 kHz / mono / 16-bit with no validation | `App.tsx:240 createWavUrlFromBytes(bytes, sampleRate = 24000)` |
 | – | Inline unbounded retry loop for HTTP 429 (3 attempts, fixed delay, no jitter) | `App.tsx` `generateAudio` |
-| – | `mockTTS` mode (`VITE_MOCK_TTS === 'true'`) generates local silence; env var **undocumented** | `App.tsx` |
+| – | `mockTTS` mode (`VITE_MOCK_TTS === 'true'`) generates local silence; env var **undocumented** — **REMOVED 2026-09-09 (WP-09)**: the flag and its silence path are deleted; no simulation flag exists anywhere | `App.tsx` (historical) |
 | D-024 | Downstream clip duration assumed = previous `totalDuration` | `VideoStudioPro.tsx:216` |
 
 ## 4. Target behaviour on failure

@@ -15,9 +15,9 @@ Machine-readable summary table, then one section per risk with detail.
 | ID | Risk | Sev | Prob | Impact | Owner WP | Verification | Status |
 |---|---|---|---|---|---|---|---|
 | R-001 | Export renders placeholder frames because media is scraped from the Preview DOM | P0 | High | 58.9 % of frames wrong | WP-02 | `repro-export-registry.mts` → 0 | OPEN |
-| R-002 | Anonymous caller makes arbitrary metered Gemini calls | P0 | High | unbounded billing, instruction override | WP-01 | executable abuse test | OPEN |
-| R-003 | Anonymous caller triggers server file writes and process spawn | P0 | High | RCE-adjacent, disk exhaustion | WP-01 | route-absence + auth test | OPEN |
-| R-004 | AI failures surface as successful fabricated output | P1 | High | users ship fake content | WP-09 | failure-mode test matrix | OPEN |
+| R-002 | Anonymous caller makes arbitrary metered Gemini calls | P0 | High | unbounded billing, instruction override | WP-01 | executable abuse test | CLOSED |
+| R-003 | Anonymous caller triggers server file writes and process spawn | P0 | High | RCE-adjacent, disk exhaustion | WP-01 | route-absence + auth test | CLOSED |
+| R-004 | AI failures surface as successful fabricated output | P1 | High | users ship fake content | WP-09 | failure-mode test matrix | CLOSED |
 | R-005 | Export/preview transform divergence | P1 | High | 662 px visual mismatch | WP-03 | `repro-transform-order.mts` → 0 | OPEN |
 | R-006 | Export does not clip cover-scaled media | P1 | High | up to 991.7 px overflow | WP-03 | `repro-media-cover-clip.mts` → 0 | OPEN |
 | R-007 | Uploaded media lost on reload (blob URLs persisted) | P1 | High | data loss | WP-05 | save/reload/restore test | OPEN |
@@ -26,7 +26,7 @@ Machine-readable summary table, then one section per risk with detail.
 | R-010 | Test suite provides no behavioural assurance | P1 | High | regressions invisible | WP-06 | suite composition test | OPEN |
 | R-011 | Resource leaks (object URLs, handlers, contexts) | P1 | High | tab crash, unsaved work | WP-11 | balance probe | OPEN |
 | R-012 | `ondequeue` handler accumulation during back-pressure | P1 | Medium | memory growth, stall | WP-11 | `repro-ondequeue-leak.cjs` → 0 | OPEN |
-| R-013 | Environment-conditional authorisation | P1 | Medium | auth bypass outside prod | WP-01 | dev-mode auth test | OPEN |
+| R-013 | Environment-conditional authorisation | P1 | Medium | auth bypass outside prod | WP-01 | dev-mode auth test | CLOSED |
 | R-014 | Three competing export dispatch authorities + polling orchestrator | P2 | Medium | latent double-dispatch / stuck queue | WP-04 | `repro-queue-deadlock.mts` (guard, currently 0) | OPEN |
 | R-015 | ~~Hard-coded port breaks Cloud Run deploy~~ **RECLASSIFIED 2026-09-09**: `3000` is the **AI Studio convention**; the app runs there today. Retained as a **portability** defect for optional external deployment | **P2** (was P1) | Low | external deploy only | WP-07 | `process.env.PORT ?? 3000` + optional container boot | OPEN |
 | R-016 | `better-sqlite3` breaks `npm install` | P1 | High | no reproducible install | WP-07 | `npm ci` in a clean container | OPEN |
@@ -36,7 +36,7 @@ Machine-readable summary table, then one section per risk with detail.
 | R-020 | UI owns workflow semantics (480-line effect) | P2 | High | untestable, closure-stale logic | WP-04 | workflow tests | OPEN |
 | R-021 | Parity/diagnostics subsystem never executes | P2 | High | false assurance | WP-03 | coverage of the gate | OPEN |
 | R-022 | Hard-coded Persian UI strings and prompts | P2 | Medium | unusable for other locales | WP-12 | script-detection test | OPEN |
-| R-023 | No retry/timeout on AI calls | P2 | Medium | indefinite hangs | WP-09 | timeout test | OPEN |
+| R-023 | No retry/timeout on AI calls | P2 | Medium | indefinite hangs | WP-09 | timeout test | CLOSED |
 | R-024 | Non-deterministic persisted state (`Math.random()` ids/waveforms) | P2 | Medium | unstable undo/diff/tests | WP-12 | determinism test | OPEN |
 | R-025 | No CI, no lint, no Dockerfile, no deploy docs | P2 | High | unrepeatable verification | WP-07 | CI green | OPEN |
 | R-026 | Browser capability requirements undeclared | P2 | Medium | silent export failure | WP-07 | capability probe test | OPEN |
@@ -81,6 +81,12 @@ Machine-readable summary table, then one section per risk with detail.
   validation, per-IP **and** per-token limits, daily budget.
 * **Owner WP:** WP-01 · **Verification:** crafted-body request ⇒ 400; model-id containment
   static test.
+* **Resolution (2026-09-09, CLOSED):** `/api/generateContent` is gone — `410 Gone` with a
+  `SHIM-004` migration note (live `req_408e49f70cbcfb10`). A crafted `{model, config}` body to
+  `/api/ai/script` is rejected `400 VALIDATION_FAILED` ("model is not an accepted field"),
+  every operation route requires a scoped token, and limits are per-IP **and** per-token
+  (30/60 text, 10/20 speech) with `Retry-After` (live 429 `req_863a736a6a8a72f5`).
+  Evidence: `tests/server/contract.test.mts`, `resolution-test/security-stage12.cjs`.
 
 ### R-003 — Anonymous server-side file write and spawn
 * **Impact:** disk exhaustion (7.2 GB/min/IP measured), unauthenticated `spawn`, temp-dir
@@ -90,6 +96,11 @@ Machine-readable summary table, then one section per risk with detail.
 * **Mitigations:** ADR-004 removes the route set entirely; ADR-014 forbids env-conditional
   auth for anything that remains.
 * **Owner WP:** WP-01 · **Verification:** route-absence test + no `spawn` in `server/**`.
+* **Resolution (2026-09-09, CLOSED):** the whole `/api/export/*` set is deleted; all five routes
+  answer `410` (live `req_a5ed139387076f7d`). The server imports no `child_process`, calls no
+  `spawn`/`exec`, invokes no ffmpeg and writes no `/tmp` path — asserted statically by
+  `resolution-test/security-stage12.cjs` (35 assertions) and
+  `tests/phaseE-api-route-integrity.cjs` (60 assertions).
 
 ### R-004 — Fabricated success
 * **Impact:** users receive and ship AI-generated content that was never generated by a model.
@@ -98,6 +109,13 @@ Machine-readable summary table, then one section per risk with detail.
   `/api/generateContent`; hard-coded green badge in `App.tsx`.
 * **Mitigations:** ADR-009 + INV-010; typed errors; `/api/health/ai`-driven badge.
 * **Owner WP:** WP-09 · **Verification:** five failure modes ⇒ non-2xx with distinct codes.
+* **Resolution (2026-09-09, CLOSED):** `generateSimulatedContent`, the 1.00 s silence buffer and
+  the hard-coded badge are deleted. A missing key is `503 AI_NOT_CONFIGURED` on all four AI
+  routes (live `req_7613a24723778b39`); the badge has four states driven by `/api/health/ai`.
+  Client-side TTS validation rejects silent, short, undecodable and format-mismatched audio
+  (`tests/unit/ai/validateSpeech.test.mts`). **No simulation flag was implemented:** ADR-009 §4
+  permits `AI_ALLOW_SIMULATION` only under three conditions; omitting it satisfies INV-010
+  unconditionally and removes the hazard instead of gating it.
 
 ### R-005 — Transform divergence
 * **Impact:** up to 662 px of position error; every rotated, non-uniformly scaled clip differs
@@ -167,6 +185,10 @@ Machine-readable summary table, then one section per risk with detail.
 * **Evidence:** export auth gated on `NODE_ENV === 'production'`.
 * **Mitigations:** ADR-014; auth is unconditional; no privileged server route remains.
 * **Owner WP:** WP-01 · **Verification:** dev-mode request ⇒ 401.
+* **Resolution (2026-09-09, CLOSED):** authorisation is unconditional — `requireSession()` runs
+  on every operation route in every environment, with no `NODE_ENV` in any auth guard.
+  `tests/server/contract.test.mts` T-02 asserts 401 with `nodeEnv: development` **and**
+  `production`; T-05/T-06 cover wrong scope (403) and tampered/expired tokens (401).
 
 ### R-014 — Competing export dispatch authorities
 * **Impact:** latent double dispatch, stuck queues, unhonoured "parallel" mode.
@@ -243,6 +265,10 @@ Machine-readable summary table, then one section per risk with detail.
   TTS.
 * **Mitigations:** workflow retry/timeout policies; server-side `AbortSignal.timeout`.
 * **Owner WP:** WP-09 · **Verification:** timeout and bounded-retry tests.
+* **Resolution (2026-09-09, CLOSED):** the inline TTS retry loop is gone. Retry is bounded
+  (3 attempts, exponential 500 ms → 8 s, full jitter) and allowlisted to five codes; timeouts are
+  per-step and per-run (`TIMEOUT_POLICIES`) plus per-model upstream timeouts (120/180/60 s).
+  Proven by `tests/unit/workflow/lifecycle.test.mts` T-08…T-15.
 
 ### R-024 — Non-deterministic persisted state
 * **Impact:** unstable ids, noisy diffs, non-reproducible tests, hidden state churn.
@@ -291,6 +317,10 @@ Machine-readable summary table, then one section per risk with detail.
 * **Mitigations:** record-and-replay fixtures committed to the repo; one live smoke run during
   WP-10 runtime certification, in an environment with egress.
 * **Owner WP:** WP-09 / WP-10 · **Verification:** live-service run recorded with request ids.
+* **Status note (2026-09-09):** still **BLOCKED** for live Gemini traffic — this sandbox has no
+  egress. Everything that does not need egress is now verified executably (failure mapping with
+  an injected transport, schema rejection, auth, rate limits) and against the real server over
+  localhost; see `docs/execution/evidence/wp-01-wp-04-wp-09-verification.md` §1b.
 
 ### R-031 — "Parallel" export mode not honoured
 * **Impact:** user selects parallel, gets serial; queue appears stalled.

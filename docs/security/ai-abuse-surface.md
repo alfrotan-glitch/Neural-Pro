@@ -1,10 +1,20 @@
 # AI Abuse Surface
 
-**Status:** current surface is **fully open** (P0). Target is an operation allowlist.
+**Status (updated 2026-09-09, WP-01/WP-09):** the surface described in §1 is **closed**.
+`POST /api/generateContent` is deleted and answers `410 Gone` with a `SHIM-004` migration note;
+the operation allowlist in §2 is implemented, and §3/§4/§5 are enforced executably. §1 is kept
+verbatim as the audit record of what was reproduced.
+
+Verification: `tests/server/contract.test.mts` (15 HTTP-level tests),
+`resolution-test/security-stage12.cjs` (35 static assertions),
+`tests/phaseE-api-route-integrity.cjs` (60 assertions), and a live localhost run recorded in
+`docs/execution/evidence/wp-01-wp-04-wp-09-verification.md` §1b — a crafted `{model, config}`
+body is rejected `400 VALIDATION_FAILED` ("model is not an accepted field"), an unauthenticated
+call is `401`, and 40 rapid calls trip `429` with `Retry-After`.
 
 ---
 
-## 1. Current surface (as-executed)
+## 1. Current surface (as-executed, pre-2026-09-09 — historical)
 
 ```
 POST /api/generateContent

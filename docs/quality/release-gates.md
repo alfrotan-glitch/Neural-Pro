@@ -15,7 +15,7 @@ command ran and succeeded. `BLOCKED` requires a named missing capability and an 
 | G-02 | Typecheck | static | `npm run typecheck` | **PASS** | – |
 | G-03 | Lint + layer boundaries | static | `npm run lint` | **ABSENT** | WP-07 |
 | G-04 | Behavioural test suite | executable | `npm test` (post WP-06) | **FAIL** (177/191 greps) | WP-06 |
-| G-05 | Audit reproductions | executable | `repro-export-registry`, `repro-transform-order`, `repro-media-cover-clip`, `repro-export-queue`, `repro-ondequeue-leak` all exit 0 | **FAIL** (5/5 fail) | WP-02/03/04/11 |
+| G-05 | Audit reproductions | executable | `repro-export-registry`, `repro-transform-order`, `repro-media-cover-clip`, `repro-export-queue`, `repro-ondequeue-leak` all exit 0 | **FAIL** (1/5 pass — `repro-export-queue` **exit 0** by WP-04 on 2026-09-09; `repro-export-registry`, `repro-transform-order` (2/4 divergent), `repro-media-cover-clip` (3/4 divergent), `repro-ondequeue-leak` still exit 1: WP-02/03/11) | WP-02/03/04/11 |
 | G-06 | Deadlock guard | executable | `repro-queue-deadlock.mts` exits 0 | **PASS** (guard) | WP-04 |
 | G-07 | Export independence | executable | export with Preview unmounted | **FAIL** | WP-02 |
 | G-08 | Render parity L1 (semantic) | executable | parity suite | **FAIL** | WP-03 |
@@ -28,7 +28,7 @@ command ran and succeeded. `BLOCKED` requires a named missing capability and an 
 | G-15 | Measured duration authority | executable | import + generated-audio duration | **FAIL** (D-024) | WP-11 |
 | G-16 | AI abuse surface closed | executable + static | crafted body ⇒ 400; no model id outside registry | **FAIL** | WP-01 |
 | G-17 | Authorisation unconditional | executable | dev-mode privileged request ⇒ 401 | **FAIL** | WP-01 |
-| G-18 | No fabricated success | executable | five failure modes ⇒ non-2xx | **FAIL** | WP-09 |
+| G-18 | No fabricated success | executable | five failure modes ⇒ non-2xx | **PASS** (2026-09-09) — `tests/server/contract.test.mts`: 503 `AI_NOT_CONFIGURED`, 429 `AI_RATE_LIMITED`, 422 `AI_SAFETY_BLOCKED`, 502 `AI_RESPONSE_INVALID`, 502 `AI_UPSTREAM_ERROR`; plus client-side `tests/unit/ai/validateSpeech.test.mts` | WP-09 |
 | G-19 | No secret in client bundle | static | `grep` over `dist/**` | **PASS** (value) / mechanism present | WP-07 |
 | G-20 | No host-specific path/port | static | grep for `/tmp`, `localhost`, literal ports | **FAIL** | WP-07 |
 | **G-31-P** | **Preview Compatibility Gate** — AS-01…AS-16 in Context P (AI Studio Preview / Build mode) | **AI Studio + browser + live-service** | per-criterion record: status + evidence class + evidence ref + timestamp + context + reproducibility | **UNVERIFIED** | WP-13 |
@@ -57,8 +57,9 @@ command ran and succeeded. `BLOCKED` requires a named missing capability and an 
 
 ## Current assessment
 
-**NOT READY.** 5 of 6 executable reproductions fail; 3 P0 defects are open (D-001, D-002,
-D-003); the test suite is 92.7 % non-behavioural; **no execution inside Google AI Studio has
+**NOT READY.** 4 of 6 executable reproductions still fail (`repro-export-queue` and the
+deadlock guard now exit 0); D-002 and D-003 are **closed** by WP-01 (2026-09-09) and D-001
+remains open; the test suite is 92.7 % non-behavioural; **no execution inside Google AI Studio has
 been performed (G-31 UNVERIFIED)**; no browser verification has been executed.
 
 **Target note (2026-09-09).** G-21…G-23 are now **optional external-deployment** gates. They

@@ -1,12 +1,28 @@
 # AI Architecture
 
-**Status:** current (P0-insecure) + target.
-Owns **INV-005** (no anonymous client controls model/configuration) and
-**INV-010** (AI failure cannot appear as successful AI output).
+**Status (updated 2026-09-09, WP-01 + WP-09):** §2 (the target boundary) is **implemented**;
+§1 is retained verbatim as the audit record of the as-executed P0s, which are now closed.
+INV-005 and INV-010 are **PASS** in `docs/quality/invariant-register.md`.
+
+Implemented exactly as specified in §2:
+
+| §2 subsection | Implementation |
+|---|---|
+| 2.2 operation allowlist | `server/operations/{ai,captions}.ts`; `/api/generateContent` and `/api/export/*` ⇒ `410` (`server/operations/gone.ts`, `SHIM-004`) |
+| 2.3 model registry | `server/config/models.ts` — asserted to be the only module containing a model id |
+| 2.4 request pipeline | session scope → strict schema → rate limit (per IP **and** per token) → prompt template → upstream call with a per-model timeout → output schema |
+| 2.5 error mapping | `server/errors.ts` + `src/domain/errors/appError.ts` (one code list for both sides) |
+| 2.6 prompt construction | `server/prompts/*.ts` with `<<<USER_INPUT>>>` delimiters; injection confinement is tested |
+| 2.7 TTS specifics | `src/infra/ai/validateSpeech.ts` — header derived from the decoded buffer, silence rejected |
+| 2.8 observability | `requestId` on every response and log line; secrets redacted |
+
+**Deviation from §2.6/ADR-009 §4:** no `AI_ALLOW_SIMULATION` flag was implemented. ADR-009
+permits a gated simulation mode; omitting it satisfies INV-010 unconditionally, so a missing
+key is always `503 AI_NOT_CONFIGURED` and no code path can produce fabricated content.
 
 ---
 
-## 1. Current state
+## 1. Current state (pre-2026-09-09 — historical)
 
 ### 1.1 Integrations
 
