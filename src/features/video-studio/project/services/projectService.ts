@@ -14,6 +14,10 @@ export interface ProjectAssetInput {
   videoUrl?: string;
   audioUrl?: string;
   imageUrl?: string;
+  /** Durable asset identity (ADR-006). Survives reload; the URLs above do not. */
+  videoAssetId?: string;
+  audioAssetId?: string;
+  imageAssetId?: string;
   textContent?: string;
   words?: unknown;
 }
@@ -228,10 +232,13 @@ export function addAssetToTracks(
     ...(asset.videoUrl ? { videoUrl: asset.videoUrl } : {}),
     ...(asset.audioUrl ? { audioUrl: asset.audioUrl } : {}),
     ...(asset.imageUrl ? { imageUrl: asset.imageUrl } : {}),
+    ...(asset.videoAssetId ? { videoAssetId: asset.videoAssetId } : {}),
+    ...(asset.audioAssetId ? { audioAssetId: asset.audioAssetId } : {}),
+    ...(asset.imageAssetId ? { imageAssetId: asset.imageAssetId } : {}),
     ...(asset.textContent ? { textContent: asset.textContent } : {}),
     ...(asset.words ? { words: asset.words } : {}),
     timelineLaneRole: laneRole,
-    ...(asset.videoUrl || asset.audioUrl || laneRole === 'audio'
+    ...(asset.videoUrl || asset.audioUrl || asset.videoAssetId || asset.audioAssetId || laneRole === 'audio'
       ? { sourceMediaDuration: duration }
       : {}),
     ...(laneRole === 'subscribe' || asset.id === 'st_cyber_sub' || asset.id === 'ef_cyber_sub'
