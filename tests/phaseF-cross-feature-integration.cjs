@@ -20,15 +20,21 @@ assert.match(validation, /totalDuration.*does not match timeline duration/);
 assert.match(validation, /selectedNodeIds contains unknown clip/);
 assert.match(store, /assertValidProjectState\(normalizedState\)/);
 assert.match(store, /hydrateProject/);
-assert.match(persistence, /schemaVersion/);
-assert.match(persistence, /getProjectStorageKey/);
+// Persistence moved to the durable IndexedDB layer (WP-05 / ADR-006). The
+// behavioural contract is executed by tests/persistence/**; these assertions only
+// pin the cross-feature wiring that this file has always been responsible for.
+assert.match(persistence, /PROJECT_SCHEMA_VERSION/);
 assert.match(persistence, /LEGACY_GLOBAL_KEY/);
 assert.match(persistence, /isPlaying: false/);
-assert.match(videoStudio, /saveProjectToStorage\(localStorage, projectName/);
-assert.match(videoStudio, /loadProjectFromStorage\(\s*localStorage/);
+assert.match(persistence, /assertNoTransientReferences|serializeProjectDocument/);
+assert.match(videoStudio, /saveCurrentProject\(projectName\)/);
+assert.match(videoStudio, /loadCurrentProject\(projectName\)/);
+assert.doesNotMatch(videoStudio, /saveProjectToStorage\(localStorage/);
+assert.doesNotMatch(videoStudio, /loadProjectFromStorage\(\s*localStorage/);
 assert.doesNotMatch(videoStudio, /localStorage\.setItem\(`video_studio_pro_project_\$\{projectName\}`/);
 assert.doesNotMatch(timeline, /localStorage\.setItem\('video_studio_pro_saved_project'/);
-assert.match(timeline, /saveProjectToStorage\(localStorage, projectName/);
+assert.match(timeline, /saveCurrentProject\(projectName\)/);
+assert.doesNotMatch(timeline, /saveProjectToStorage\(localStorage/);
 assert.match(exportService, /job\.projectSnapshot/);
 assert.match(mapper, /projectTimeToSourceTime/);
 assert.match(captionPlan, /CaptionRenderPlan/);

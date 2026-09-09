@@ -56,6 +56,7 @@ const tests = [
   ['phase58-preview-transform-geometry', path.join(root, 'tests/phase58-preview-transform-geometry.cjs')],
   ['phase63-auto-keyframe-contract', path.join(root, 'tests/phase63-auto-keyframe-contract.cjs')],
   ['phase118-repaired-defect-regressions', path.join(root, 'tests/phase118-repaired-defect-regressions.cjs')],
+  ['persistence-suite', path.join(root, 'tests/persistence/run.cjs')],
 ];
 
 let failed = 0;

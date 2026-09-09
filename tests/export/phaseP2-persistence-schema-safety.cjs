@@ -1,49 +1,50 @@
-const fs = require('fs');
+/**
+ * Phase P2 — persistence schema safety.
+ *
+ * This used to transpile `projectPersistenceService.ts` in a bare VM with stubbed
+ * imports and grep the source for two strings (defect D-011: a test that asserts
+ * formatting, not behaviour). The guarantees it cared about are now executed for
+ * real, against the actual modules, by the persistence suite:
+ *
+ *   tests/persistence/03-crash-and-corruption.test.mjs
+ *     - unknown schemaVersion is refused with PERSISTENCE_UNSUPPORTED_VERSION (R4)
+ *     - corrupt / tampered / partially written documents are detected and never
+ *       partially hydrated
+ *   tests/persistence/04-migration.test.mjs
+ *     - legacy (pre-schema) and V1 documents are still readable, and migration
+ *       never silently drops media
+ *
+ * This file runs those suites and fails with them.
+ */
+
+const { spawnSync } = require('child_process');
 const path = require('path');
-const vm = require('vm');
-const ts = require(require.resolve('typescript', { paths: [path.resolve(__dirname, '..', '..')] }));
 
-const root = path.resolve(__dirname, '../..');
-const persistencePath = path.join(root, 'src/features/video-studio/project/services/projectPersistenceService.ts');
-const source = fs.readFileSync(persistencePath, 'utf8');
+const root = path.resolve(__dirname, '..', '..');
+const suites = [
+  'tests/persistence/03-crash-and-corruption.test.mjs',
+  'tests/persistence/04-migration.test.mjs',
+];
 
-function assert(condition, message) {
-  if (!condition) throw new Error(message);
+let failed = 0;
+for (const suite of suites) {
+  const result = spawnSync(process.execPath, ['--import', 'tsx', suite], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  process.stdout.write(result.stdout || '');
+  process.stderr.write(result.stderr || '');
+  if (result.status !== 0) {
+    console.error(`[FAIL] ${suite}`);
+    failed += 1;
+  } else {
+    console.log(`[PASS] ${suite}`);
+  }
 }
 
-assert(source.includes('candidate.schemaVersion === undefined'), 'legacy persistence must be recognized explicitly');
-assert(source.includes('Unsupported persisted project schema version'), 'unknown future schema must be rejected instead of treated as legacy');
-
-const out = ts.transpileModule(source, {
-  compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, esModuleInterop: true },
-  fileName: persistencePath,
-}).outputText;
-
-// Verify the decision branch in the actual transpiled implementation without requiring browser storage/dependencies.
-const moduleObj = { exports: {} };
-const fallback = {
-  projectId: 'fallback',
-  metadata: { title: 'Fallback', resolution: { width: 1920, height: 1080 }, fps: 30 },
-  currentTime: 0,
-  totalDuration: 0,
-  tracks: [],
-  selectedNodeIds: [],
-  isPlaying: false,
-};
-const injectedRequire = (request) => {
-  if (request.includes('projectStateInvariants')) return { assertValidProjectState: () => {} };
-  if (request.includes('projectDuration')) return { calculateProjectDuration: () => 0, clampProjectTime: (t) => t };
-  if (request.includes('cyberpunkSubscribeModel')) return { normalizeCyberpunkSubscribeProperties: (value) => value || {} };
-  throw new Error(`unexpected require: ${request}`);
-};
-vm.runInNewContext(out, { module: moduleObj, exports: moduleObj.exports, require: injectedRequire, console, structuredClone }, { filename: persistencePath });
-const { deserializeProject } = moduleObj.exports;
-
-let rejected = false;
-try {
-  deserializeProject(JSON.stringify({ schemaVersion: 999, project: { tracks: [] } }), fallback);
-} catch (error) {
-  rejected = String(error?.message || error).includes('Unsupported persisted project schema version');
+if (failed > 0) {
+  console.error(`PHASE_P2_PERSISTENCE_SCHEMA_SAFETY=FAIL (${failed} suite(s))`);
+  process.exitCode = 1;
+} else {
+  console.log('PHASE_P2_PERSISTENCE_SCHEMA_SAFETY=PASS');
 }
-assert(rejected, 'unsupported persistence schema must be rejected');
-console.log('PHASE_P2_PERSISTENCE_SCHEMA_SAFETY=PASS');
