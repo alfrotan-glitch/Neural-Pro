@@ -1,8 +1,7 @@
 // src/features/video-studio/export/components/ExportJobManager.tsx
 import React from 'react';
-import { useExportStore } from '../../../../store/useExportStore';
 import type { ExportJob } from '../../../../store/useExportStore';
-import { RenderPipeline } from '../../../../core/engine/RenderPipeline';
+import { getExportQueue } from '../../../../app/workflows/export/exportQueue';
 import { 
   Play, RotateCcw, Trash2, XCircle, CheckCircle, Clock, AlertTriangle, Download, Film, Cpu, HardDrive
 } from 'lucide-react';
@@ -12,8 +11,9 @@ interface ExportJobManagerProps {
 }
 
 export const ExportJobManager: React.FC<ExportJobManagerProps> = ({ job }) => {
-  const { cancelJob, retryJob, removeJob } = useExportStore();
-  const pipeline = RenderPipeline.getInstance();
+  // UI actions are *intents*: the workflow runtime owns run status and mirrors it
+  // into the store one-way. No component assigns job status.
+  const queue = getExportQueue();
 
   const getStatusBadge = () => {
     switch (job.status) {
@@ -112,8 +112,7 @@ export const ExportJobManager: React.FC<ExportJobManagerProps> = ({ job }) => {
             {(job.status === 'waiting' || job.status === 'preparing' || job.status === 'rendering') && (
               <button
                 onClick={() => {
-                  pipeline.cancelJob(job.id);
-                  cancelJob(job.id);
+                  queue.cancel(job.id);
                 }}
                 title="Cancel job"
                 className="p-1.5 rounded-md hover:bg-rose-500/10 text-gray-400 hover:text-rose-400 transition-all cursor-pointer"
@@ -124,7 +123,9 @@ export const ExportJobManager: React.FC<ExportJobManagerProps> = ({ job }) => {
 
             {(job.status === 'failed' || job.status === 'cancelled') && (
               <button
-                onClick={() => retryJob(job.id)}
+                onClick={() => {
+                  void queue.retry(job.id);
+                }}
                 title="Retry render"
                 className="p-1.5 rounded-md hover:bg-purple-500/10 text-gray-400 hover:text-purple-400 transition-all cursor-pointer"
               >
@@ -145,7 +146,7 @@ export const ExportJobManager: React.FC<ExportJobManagerProps> = ({ job }) => {
 
             {(job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') && (
               <button
-                onClick={() => removeJob(job.id)}
+                onClick={() => queue.remove(job.id)}
                 title="Remove job from log"
                 className="p-1.5 rounded-md hover:bg-white/5 text-gray-500 hover:text-white transition-all cursor-pointer"
               >

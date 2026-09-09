@@ -51,7 +51,11 @@ interface ExportStore extends ExportSettings {
   // Job Queue Operations
   addJob: (projectName: string, settings: ExportJob['settings'], projectSnapshot: ExportProjectSnapshot) => string;
   removeJob: (jobId: string) => void;
-  cancelJob: (jobId: string) => void;
+  /**
+   * Reset a job so the export scheduler can dispatch a NEW run (attempt + 1).
+   * Cancellation is *not* a store operation: the workflow runtime owns run
+   * status and mirrors it here one-way (ADR-011, D-010).
+   */
   retryJob: (jobId: string) => void;
   updateJob: (jobId: string, updates: Partial<ExportJob>) => void;
   clearQueue: () => void;
@@ -159,22 +163,6 @@ export const useExportStore = create<ExportStore>((set, get) => ({
 
     set((state) => ({
       jobs: state.jobs.filter((j) => j.id !== jobId),
-    }));
-  },
-
-  cancelJob: (jobId) => {
-    set((state) => ({
-      jobs: state.jobs.map((j) => {
-        if (j.id === jobId && (j.status === 'waiting' || j.status === 'preparing' || j.status === 'rendering')) {
-          return {
-            ...j,
-            status: 'cancelled' as const,
-            endTime: new Date().toLocaleTimeString(),
-            estimatedRemainingTime: 0,
-          };
-        }
-        return j;
-      }),
     }));
   },
 

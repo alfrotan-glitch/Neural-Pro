@@ -1,23 +1,24 @@
 // src/features/video-studio/export/components/ExportQueueManager.tsx
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { useExportStore } from '../../../../store/useExportStore';
 import { ExportJobManager } from './ExportJobManager';
-import { RenderPipeline } from '../../../../core/engine/RenderPipeline';
-import { 
-  Play, Pause, Trash2, CheckCircle2, AlertCircle, Clock, RefreshCw, Layers, ListOrdered, Sparkles, Terminal, Trash
+import { getExportQueue } from '../../../../app/workflows/export/exportQueue';
+import {
+  Play, Pause, Trash2, CheckCircle2, AlertCircle, Clock, RefreshCw, Layers, ListOrdered, Terminal, Trash
 } from 'lucide-react';
 
 export const ExportQueueManager: React.FC = () => {
-  const { jobs, clearQueue } = useExportStore();
-  const [isQueueRunning, setIsQueueRunning] = useState<boolean>(false);
-  const [processMode, setProcessMode] = useState<'sequential' | 'parallel'>('sequential');
+  const jobs = useExportStore((state) => state.jobs);
+  const [isQueueRunning, setIsQueueRunning] = useState<boolean>(!getExportQueue().isPaused);
   
   // Production export engine logs
   const [logs, setLogs] = useState<string[]>([]);
   const [showConsole, setShowConsole] = useState<boolean>(true);
   const consoleBottomRef = useRef<HTMLDivElement>(null);
 
-  const pipeline = useMemo(() => RenderPipeline.getInstance(), []);
+  // The scheduler is the single dispatch authority; this component only renders
+  // its observable state and forwards intents.
+  const queue = useMemo(() => getExportQueue(), []);
 
   // Stats calculation
   const stats = useMemo(() => {
@@ -32,11 +33,11 @@ export const ExportQueueManager: React.FC = () => {
 
   // Subscribe to pipeline logs
   useEffect(() => {
-    const unsubscribe = pipeline.subscribeLogs((newLogs) => {
+    const unsubscribe = queue.subscribeLogs((newLogs) => {
       setLogs(newLogs);
     });
     return unsubscribe;
-  }, [pipeline]);
+  }, [queue]);
 
   // Scroll console to bottom when logs are updated
   useEffect(() => {
@@ -45,58 +46,22 @@ export const ExportQueueManager: React.FC = () => {
     }
   }, [logs, showConsole]);
 
-  // Queue orchestrator loop
-  useEffect(() => {
-    if (!isQueueRunning) return;
-
-    let isSubscribed = true;
-    let timer: NodeJS.Timeout;
-
-    const runOrchestrator = async () => {
-      // Check current active jobs
-      const activeJobs = jobs.filter(
-        (j) => j.status === 'rendering' || j.status === 'preparing'
-      );
-
-      if (processMode === 'sequential') {
-        // Sequential: Only run if no active jobs are processing
-        if (activeJobs.length === 0) {
-          const nextJob = [...jobs].reverse().find((j) => j.status === 'waiting');
-          if (nextJob && isSubscribed) {
-            await pipeline.renderJob(nextJob.id);
-          } else if (!nextJob) {
-            setIsQueueRunning(false);
-          }
-        }
-      } else {
-        // Parallel requests are serialized by the single production encoder
-        const waitingJobs = jobs.filter((j) => j.status === 'waiting');
-        if (waitingJobs.length > 0 && isSubscribed) {
-          await Promise.all(
-            waitingJobs.map((job) => pipeline.renderJob(job.id))
-          );
-        } else if (activeJobs.length === 0) {
-          setIsQueueRunning(false);
-        }
-      }
-    };
-
-    // Poll the orchestrator tick every 1.5 seconds
-    timer = setInterval(() => {
-      runOrchestrator();
-    }, 1500);
-
-    // Run first immediately
-    runOrchestrator();
-
-    return () => {
-      isSubscribed = false;
-      clearInterval(timer);
-    };
-  }, [isQueueRunning, jobs, processMode, pipeline]);
+  /**
+   * No polling orchestrator (R-014): the queue advances on workflow state
+   * transitions inside the runtime. This component only forwards the
+   * start/pause intent.
+   */
+  const toggleQueue = useCallback(() => {
+    setIsQueueRunning((running) => {
+      const next = !running;
+      if (next) queue.resume();
+      else queue.pause();
+      return next;
+    });
+  }, [queue]);
 
   const handleClearLogs = () => {
-    pipeline.clearLogs();
+    queue.clearLogs();
   };
 
   const getLogColorClass = (log: string) => {
@@ -119,7 +84,7 @@ export const ExportQueueManager: React.FC = () => {
             <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
               <span>Media Encoder Queue</span>
               <span className="inline-flex items-center text-[8px] font-bold px-1.5 py-0.5 rounded-md bg-purple-500/25 text-purple-300">
-                PRO ACTIVE
+                {isQueueRunning ? 'RUNNING' : 'PAUSED'}
               </span>
             </h3>
             <p className="text-[9px] text-gray-500 font-medium">
@@ -130,32 +95,10 @@ export const ExportQueueManager: React.FC = () => {
 
         {/* Controller actions */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Mode Switcher */}
-          <div className="flex bg-black/40 p-0.5 rounded-lg border border-white/5">
-            <button
-              onClick={() => setProcessMode('sequential')}
-              className={`px-2 py-1 text-[8.5px] font-bold rounded flex items-center gap-1 transition-all cursor-pointer ${
-                processMode === 'sequential'
-                  ? 'bg-purple-500 text-white shadow font-black'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-              title="Sequential processing (one job at a time)"
-            >
-              <ListOrdered className="w-3 h-3" />
-              <span>Sequential</span>
-            </button>
-            <button
-              onClick={() => setProcessMode('parallel')}
-              className={`px-2 py-1 text-[8.5px] font-bold rounded flex items-center gap-1 transition-all cursor-pointer ${
-                processMode === 'parallel'
-                  ? 'bg-purple-500 text-white shadow font-black'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-              title="Parallel requests are accepted but serialized by the single production encoder"
-            >
-              <Sparkles className="w-3 h-3" />
-              <span>Parallel requests</span>
-            </button>
+          {/* Processing is serial by design: one encoder owner (ADR-011). */}
+          <div className="flex items-center gap-1 bg-black/40 px-2 py-1 rounded-lg border border-white/5">
+            <ListOrdered className="w-3 h-3 text-purple-400" />
+            <span className="text-[8.5px] font-bold text-gray-400">Serial encoder</span>
           </div>
 
           <div className="h-4 w-[1px] bg-white/5" />
@@ -175,7 +118,7 @@ export const ExportQueueManager: React.FC = () => {
 
           {/* Play/Pause Queue */}
           <button
-            onClick={() => setIsQueueRunning(!isQueueRunning)}
+            onClick={toggleQueue}
             className={`px-3.5 py-1.5 rounded-lg text-[9px] font-bold flex items-center gap-1.5 transition-all shadow-md cursor-pointer ${
               isQueueRunning
                 ? 'bg-amber-500 hover:bg-amber-400 text-black shadow-amber-500/10'
@@ -198,7 +141,7 @@ export const ExportQueueManager: React.FC = () => {
           {/* Clear Log */}
           {jobs.length > 0 && (
             <button
-              onClick={clearQueue}
+              onClick={() => queue.clearQueue()}
               className="p-1.5 rounded-lg hover:bg-white/5 border border-white/10 hover:border-white/20 text-gray-400 hover:text-white transition-all cursor-pointer"
               title="Clear queue list"
             >

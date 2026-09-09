@@ -16,6 +16,7 @@ import { getExportDimensionsForJob } from '../features/video-studio/export/servi
 import { seekActiveVideoClips } from '../features/video-studio/playback/services/playbackService';
 import { getClipPlaybackRate, getClipSourceRange } from '../features/video-studio/playback/services/mediaTimeMapper';
 import { RenderPipeline } from '../core/engine/RenderPipeline';
+import type { ExportRenderProgress } from '../app/workflows/definitions/export';
 import { normalizeCyberpunkSubscribeProperties } from '../core/engine/cyberpunkSubscribeModel';
 import { CanvasExportRenderer } from '../core/engine/render/CanvasExportRenderer';
 import { collectExportVideoElements } from '../core/engine/render/ExportMediaRegistry';
@@ -110,8 +111,21 @@ export default function VideoStudioPro({ projectName, initialScript, audioUrl, o
     resolve: (blob: Blob) => void;
     reject: (error: Error) => void;
     signal: AbortSignal;
+    /** The workflow run's progress channel (WP-04 acceptance). */
+    onProgress: (progress: ExportRenderProgress) => void;
   }>());
   const activeExportSignalRef = useRef<AbortSignal | null>(null);
+  const activeExportProgressRef = useRef<((progress: ExportRenderProgress) => void) | null>(null);
+
+  /**
+   * Single progress writer: local overlay state **and** the workflow run. The
+   * export store is only ever written by the scheduler mirroring run state, so
+   * progress that never reaches `onProgress` would never reach the queue UI.
+   */
+  const reportExportProgress = useCallback((progress: ExportRenderProgress) => {
+    setExportProgress(Math.round(progress.percentage));
+    activeExportProgressRef.current?.(progress);
+  }, []);
   const activeExportSettingsRef = useRef<ExportJob['settings'] | null>(null);
   const pendingExportClipIdsRef = useRef<string[] | undefined>(undefined);
   const activeExportProjectSnapshotRef = useRef<ExportJob['projectSnapshot'] | null>(null);
@@ -166,10 +180,11 @@ export default function VideoStudioPro({ projectName, initialScript, audioUrl, o
   };
 
   useEffect(() => {
-    const unregisterRenderer = renderPipeline.registerRenderer(async (job, signal) => {
+    const unregisterRenderer = renderPipeline.registerRenderer(async (job, signal, onProgress) => {
       return new Promise<Blob>((resolve, reject) => {
-        queueResolversRef.current.set(job.id, { resolve, reject, signal });
+        queueResolversRef.current.set(job.id, { resolve, reject, signal, onProgress });
         activeExportSignalRef.current = signal;
+        activeExportProgressRef.current = onProgress;
         activeExportSettingsRef.current = job.settings;
         activeExportProjectSnapshotRef.current = job.projectSnapshot;
         activeExportProjectNameRef.current = job.projectName;
@@ -192,6 +207,7 @@ export default function VideoStudioPro({ projectName, initialScript, audioUrl, o
       queueResolversRef.current.forEach(({ reject }) => reject(new Error('Video Studio Pro was unmounted before export completion.')));
       queueResolversRef.current.clear();
       activeExportSignalRef.current = null;
+      activeExportProgressRef.current = null;
       activeExportSettingsRef.current = null;
       activeExportProjectSnapshotRef.current = null;
       activeExportProjectNameRef.current = null;
@@ -447,7 +463,7 @@ export default function VideoStudioPro({ projectName, initialScript, audioUrl, o
         // 1. Reset live preview state; rendering below uses the immutable job snapshot.
         liveStore.setIsPlaying(false);
         liveStore.setCurrentTime(0);
-      setExportProgress(1);
+      reportExportProgress({ percentage: 1 });
 
       // Create the canvas from the canonical project/export resolution.
       // Export dimensions are derived from project metadata, never from the UI viewport.
@@ -503,7 +519,7 @@ export default function VideoStudioPro({ projectName, initialScript, audioUrl, o
       // ----------------------------------------------------
       // PHASE 1: CANONICAL PROJECT AUDIO RENDER
       // ----------------------------------------------------
-      setExportProgress(3);
+      reportExportProgress({ percentage: 3 });
       showToast("🔊 مرحله ۱ از ۲: میکس آفلاین صدای پروژه با همان مدل Preview... (Phase 1/2: Canonical Offline Audio Mix...)");
 
       let finalAudioBuffer: AudioBuffer | null = null;
@@ -515,14 +531,14 @@ export default function VideoStudioPro({ projectName, initialScript, audioUrl, o
           signal: activeSignal ?? undefined,
         });
         if (activeSignal?.aborted || isCancelled) return;
-        setExportProgress(15);
+        reportExportProgress({ percentage: 15 });
       } catch (audioError) {
         if (activeSignal?.aborted || isCancelled) return;
         // Audio is part of the export contract. Do not silently replace it with silence.
         throw audioError;
       }
 
-      setExportProgress(31);
+      reportExportProgress({ percentage: 31 });
       clearExportOverlayImageCache();
       await preloadExportOverlayImages();
       exportMediaRegistryRef.current = collectExportVideoElements();
@@ -593,12 +609,12 @@ export default function VideoStudioPro({ projectName, initialScript, audioUrl, o
           totalFrames,
           finalAudioBuffer,
           renderFrame,
-          (progress) => setExportProgress(progress.percentage),
+          (progress) => reportExportProgress(progress),
           activeSignal ?? undefined
         );
         if (isCancelled) return;
         
-        setExportProgress(100);
+        reportExportProgress({ percentage: 100 });
         const fileName = `${projectName.toLowerCase().replace(/\s+/g, '_')}_render.${activeSettings.format}`;
         const objectUrl = URL.createObjectURL(blob);
         
@@ -634,10 +650,24 @@ export default function VideoStudioPro({ projectName, initialScript, audioUrl, o
       } catch (outerErr: any) {
         console.error("Pipeline error:", outerErr);
       } finally {
+        // A resolver still registered here means the pipeline ended without
+        // delivering a file (cancellation, early return, thrown error already
+        // handled above). Settle it so the workflow run reaches its terminal
+        // state immediately instead of waiting for the runtime grace timer.
+        const strandedJobId = [...queueResolversRef.current.keys()]
+          .find(id => queueResolversRef.current.get(id)?.signal === activeSignal);
+        if (strandedJobId) {
+          const stranded = queueResolversRef.current.get(strandedJobId);
+          queueResolversRef.current.delete(strandedJobId);
+          stranded?.reject(new Error(activeSignal?.aborted
+            ? 'Render job cancelled by user command.'
+            : 'The export ended without producing a file.'));
+        }
         clearExportOverlayImageCache();
         exportMediaRegistryRef.current = null;
         setIsExporting(false);
         activeExportSignalRef.current = null;
+        activeExportProgressRef.current = null;
         activeExportSettingsRef.current = null;
         activeExportProjectSnapshotRef.current = null;
         activeExportProjectNameRef.current = null;
