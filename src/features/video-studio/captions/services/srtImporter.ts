@@ -1,6 +1,9 @@
 import { useProjectStore } from '../../../../store/useProjectStore';
 import { createTrackSnapshotCommand } from '../../project/commands';
 import { parseCaptionTimestamp } from './captionTimecodeService';
+import { getProjectFps } from './captionProjectFps';
+import { toAppError } from '../../../../domain/errors/appError';
+import { runCaptions } from '../../../../app/workflows/captions/runCaptionsWorkflow';
 import { normalizeCaptionTiming, normalizeCaptionTheme, resolveCaptionImportTheme } from './captionImportService';
 import type { Track, ClipNode } from '../../project/types/project';
 
@@ -16,7 +19,7 @@ export interface ParsedSrtItem {
 /**
  * Client-side fallback parser for standard .srt subtitle files.
  */
-export function parseSrtClient(content: string): ParsedSrtItem[] {
+export function parseSrtClient(content: string, fps: number): ParsedSrtItem[] {
   if (!content || !content.trim()) return [];
 
   const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
@@ -61,8 +64,8 @@ export function parseSrtClient(content: string): ParsedSrtItem[] {
     if (!rawText) continue;
 
     try {
-      const startSeconds = parseCaptionTimestamp(startTimeRaw);
-      const endSeconds = parseCaptionTimestamp(endTimeRaw);
+      const startSeconds = parseCaptionTimestamp(startTimeRaw, fps);
+      const endSeconds = parseCaptionTimestamp(endTimeRaw, fps);
       const duration = Math.max(0.1, endSeconds - startSeconds);
 
       // Generate inferred word timestamps
@@ -123,29 +126,35 @@ export async function importSrtFile(
         return;
       }
 
+      let projectFps: number;
+      try {
+        projectFps = getProjectFps();
+      } catch (fpsError) {
+        store.showToast(`❌ ${toAppError(fpsError, 'The project frame rate is not valid.').message}`);
+        resolve(false);
+        return;
+      }
+
       let captions: ParsedSrtItem[] = [];
 
       try {
-        // Try server-side parser first
-        const response = await fetch('/api/parse-srt', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ srtContent: content, refine: false }),
+        // Server-side parse through the caption workflow (validated + typed).
+        const parsed = await runCaptions({
+          source: 'import-srt',
+          srtContent: content,
+          projectFps,
         });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.captions && Array.isArray(data.captions) && data.captions.length > 0) {
-            captions = data.captions;
-          }
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          captions = parsed as ParsedSrtItem[];
         }
       } catch {
-        // Server failed or network unavailable - proceed to client fallback
+        // Both paths below are real parses of the same file: the local parser is
+        // a legitimate fallback, not substitute AI content.
       }
 
       // Fallback to robust client parser
       if (captions.length === 0) {
-        captions = parseSrtClient(content);
+        captions = parseSrtClient(content, projectFps);
       }
 
       if (captions.length === 0) {
@@ -163,13 +172,16 @@ export async function importSrtFile(
       const displayMode = options?.captionDisplayMode || 'line';
 
       const newClips: ClipNode[] = captions.map((cap, idx) => {
-        const timing = normalizeCaptionTiming({
-          id: String(cap.id || idx + 1),
-          start_time: cap.start_time,
-          end_time: cap.end_time,
-          text: cap.text,
-          words: cap.words || [],
-        });
+        const timing = normalizeCaptionTiming(
+          {
+            id: String(cap.id || idx + 1),
+            start_time: cap.start_time,
+            end_time: cap.end_time,
+            text: cap.text,
+            words: cap.words || [],
+          },
+          projectFps,
+        );
 
         return {
           id: `srt_${Date.now()}_${idx}`,

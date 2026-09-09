@@ -3,7 +3,11 @@ import { useProjectStore } from '../../store/useProjectStore';
 import { createTrackSnapshotCommand } from '../../features/video-studio/project/commands';
 import { createDedicatedTimelineTrack, smartInsertClip } from '../../features/video-studio/project/services/projectService';
 import { normalizeCaptionTheme, resolveCaptionImportTheme, normalizeCaptionTiming } from '../../features/video-studio/captions/services/captionImportService';
-import { parseCaptionTimestamp } from '../../features/video-studio/captions/services/captionTimecodeService';
+import { parseCaptionTimestamp, secondsToFrameTimecode } from '../../features/video-studio/captions/services/captionTimecodeService';
+import { getProjectFps } from '../../features/video-studio/captions/services/captionProjectFps';
+import { runCaptions } from '../../app/workflows/captions/runCaptionsWorkflow';
+import { getAiGateway } from '../../infra/ai/HttpAiGateway';
+import { toAppError } from '../../domain/errors/appError';
 import { importSrtFile } from '../../features/video-studio/captions/services/srtImporter';
 import { 
   Volume2, Sliders, Type, Play, Trash2, RotateCcw, Save, 
@@ -244,15 +248,18 @@ export const InspectorEngine: React.FC = () => {
     if (textTrack && textTrack.clips.length > 0) {
       // Sort clips chronologically by their starting times
       const sortedClips = [...textTrack.clips].sort((a, b) => a.startAt - b.startAt);
+      // Display timecodes use the real project frame rate; when the project has
+      // no usable fps we show milliseconds instead of inventing frames (D-022).
+      const projectFps = useProjectStore.getState().metadata?.fps;
+      const hasValidFps = typeof projectFps === 'number' && Number.isFinite(projectFps) && projectFps > 0 && projectFps <= 120;
       return sortedClips.map((clip) => {
         const startSec = clip.startAt;
-        const h = Math.floor(startSec / 3600);
         const m = Math.floor((startSec % 3600) / 60);
         const s = Math.floor(startSec % 60);
-        const f = Math.floor((startSec % 1) * 30);
-        
         const pad = (n: number) => n.toString().padStart(2, '0');
-        const frameStr = `${pad(m)}:${pad(s)}:${pad(f)}`;
+        const frameStr = hasValidFps
+          ? `${pad(m)}:${pad(s)}:${secondsToFrameTimecode(startSec, projectFps).split(':')[3] ?? '00'}`
+          : `${pad(m)}:${pad(s)}.${String(Math.floor((startSec % 1) * 1000)).padStart(3, '0')}`;
         
         return {
           id: clip.id,
@@ -346,25 +353,20 @@ export const InspectorEngine: React.FC = () => {
     setIsGeneratingCaptions(true);
     showToast('⚡ Extracting timeline audio track and invoking Gemini STT pipeline...');
     try {
-      const response = await fetch('/api/generate-captions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          audioClipName: 'lofi_ambient_vibes.mp3',
-          duration: totalDuration,
-          topicPrompt: captionPrompt,
-        }),
+      const projectFps = getProjectFps();
+      const generated = await runCaptions({
+        source: 'generate',
+        audioClipName: 'lofi_ambient_vibes.mp3',
+        duration: totalDuration,
+        topicPrompt: captionPrompt,
+        projectFps,
       });
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({}));
-        throw new Error(errorBody.error || `HTTP ${response.status}`);
-      }
-      const data = await response.json();
+      const data = { captions: generated };
       if (data.captions && Array.isArray(data.captions)) {
         // Map response blocks to ClipNodes
         const newClips = data.captions.map((cap: any) => {
-          const startSeconds = parseCaptionTimestamp(cap.start_time);
-          const endSeconds = parseCaptionTimestamp(cap.end_time);
+          const startSeconds = parseCaptionTimestamp(cap.start_time, projectFps);
+          const endSeconds = parseCaptionTimestamp(cap.end_time, projectFps);
           const clipDuration = Math.max(0, parseFloat((endSeconds - startSeconds).toFixed(3)));
           
           return {
@@ -436,15 +438,10 @@ export const InspectorEngine: React.FC = () => {
       return;
     }
 
+    const exportFps = getProjectFps();
     const captionsForApi = textTrack.clips.map(clip => {
-      const hStr = (seconds: number) => {
-        const h = Math.floor(seconds / 3600);
-        const m = Math.floor((seconds % 3600) / 60);
-        const s = Math.floor(seconds % 60);
-        const f = Math.floor((seconds % 1) * 30);
-        const pad = (n: number) => n.toString().padStart(2, '0');
-        return `${pad(h)}:${pad(m)}:${pad(s)}:${pad(f)}`;
-      };
+      // Explicit project fps — no hidden 30fps default (D-022).
+      const hStr = (seconds: number) => secondsToFrameTimecode(seconds, exportFps);
       
       return {
         id: clip.id,
@@ -456,12 +453,10 @@ export const InspectorEngine: React.FC = () => {
 
     try {
       showToast('📥 Triggering SRT serialization...');
-      const response = await fetch('/api/export-srt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ captions: captionsForApi }),
+      const data = await getAiGateway().captions.exportSrt({
+        captions: captionsForApi,
+        projectFps: getProjectFps(),
       });
-      const data = await response.json();
       if (data.srt) {
         // Create download blob
         const blob = new Blob([data.srt], { type: 'text/srt;charset=utf-8;' });
@@ -510,14 +505,7 @@ export const InspectorEngine: React.FC = () => {
         const words = clip.properties.words || [];
         const text = clip.properties.textContent || clip.properties.name || '';
         
-        const hStr = (seconds: number) => {
-          const h = Math.floor(seconds / 3600);
-          const m = Math.floor((seconds % 3600) / 60);
-          const s = Math.floor(seconds % 60);
-          const f = Math.floor((seconds % 1) * 30);
-          const pad = (n: number) => n.toString().padStart(2, '0');
-          return `${pad(h)}:${pad(m)}:${pad(s)}:${pad(f)}`;
-        };
+        const hStr = (seconds: number) => secondsToFrameTimecode(seconds, getProjectFps());
 
         return {
           id: clip.id,
@@ -532,28 +520,23 @@ export const InspectorEngine: React.FC = () => {
         };
       });
 
-      const response = await fetch('/api/refine-captions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          captions: captionsForApi,
-          grammarPrompt,
-          restorePunctuation
-        }),
+      const refineFps = getProjectFps();
+      const refinedBlocks = await runCaptions({
+        source: 'refine',
+        captions: captionsForApi,
+        grammarPrompt,
+        restorePunctuation,
+        projectFps: refineFps,
       });
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({}));
-        throw new Error(errorBody.error || `HTTP ${response.status}`);
-      }
 
-      const data = await response.json();
+      const data = { captions: refinedBlocks };
       if (data.captions && Array.isArray(data.captions)) {
         const refinedClips = textTrack.clips.map((clip) => {
           const cap = data.captions.find((c: any) => c.id === clip.id);
           if (!cap) return clip;
 
-          const startSeconds = parseCaptionTimestamp(cap.start_time);
-          const endSeconds = parseCaptionTimestamp(cap.end_time);
+          const startSeconds = parseCaptionTimestamp(cap.start_time, refineFps);
+          const endSeconds = parseCaptionTimestamp(cap.end_time, refineFps);
           const clipDuration = Math.max(0, parseFloat((endSeconds - startSeconds).toFixed(3)));
 
           return {

@@ -1,25 +1,25 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Type, Modality } from '@google/genai';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Play, Square, Loader2, Mic, Settings, Volume2, Download, Sparkles, Headphones, Radio, Youtube, Video, Music, Copy, Check, FileText, Activity, Pause, Edit2, Save, MessageSquare, Sliders, Volume1 } from 'lucide-react';
 import VideoStudioPro from './components/VideoStudioPro';
 import SubscribeGenerator from './components/subscribe-generator/SubscribeGenerator';
 
-const ai = {
-  models: {
-    generateContent: async (params: any) => {
-      const response = await fetch('/api/generateContent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(params),
-      });
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || `HTTP error! status: ${response.status}`);
-      }
-      return await response.json();
-    }
-  }
-};
+// AI is reachable only through the server-owned gateway (ADR-005 / ADR-008):
+// the client sends operation inputs, never a model id, system instruction,
+// generation config, tool list or safety setting.
+import { getAiGateway } from './infra/ai/HttpAiGateway';
+import { toAppError } from './domain/errors/appError';
+import { getWorkflowRuntime } from './app/workflows/runtime';
+import { useWorkflowRun } from './app/workflows/react/useWorkflowRun';
+import { isTerminal } from './app/workflows/transitions';
+import { createPodcastWorkflow } from './app/workflows/definitions/podcast';
+import { createTtsWorkflow } from './app/workflows/definitions/tts';
+import type { ScriptLine as WorkflowScriptLine, SpeechLine } from './domain/ai/AiGateway';
+
+const workflowRuntime = getWorkflowRuntime();
+if (!workflowRuntime.getDefinition('podcast')) workflowRuntime.register(createPodcastWorkflow());
+if (!workflowRuntime.getDefinition('tts')) workflowRuntime.register(createTtsWorkflow());
+
+type AiHealthState = 'checking' | 'ready' | 'missing' | 'error';
 
 const VOICES = [
   { id: 'Zephyr', label: 'Zephyr (Bright)' },
@@ -236,54 +236,6 @@ type PodcastData = {
   script: ScriptLine[];
 };
 
-// Helper function to add a WAV header to raw PCM data
-function createWavUrlFromBytes(bytes: Uint8Array, sampleRate = 24000): string {
-  const buffer = new ArrayBuffer(44 + bytes.length);
-  const view = new DataView(buffer);
-
-  const writeString = (view: DataView, offset: number, string: string) => {
-    for (let i = 0; i < string.length; i++) {
-      view.setUint8(offset + i, string.charCodeAt(i));
-    }
-  };
-
-  // RIFF chunk descriptor
-  writeString(view, 0, 'RIFF');
-  view.setUint32(4, 36 + bytes.length, true);
-  writeString(view, 8, 'WAVE');
-
-  // fmt sub-chunk
-  writeString(view, 12, 'fmt ');
-  view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
-  view.setUint16(20, 1, true); // AudioFormat (1 for PCM)
-  view.setUint16(22, 1, true); // NumChannels (1 channel)
-  view.setUint32(24, sampleRate, true); // SampleRate
-  view.setUint32(28, sampleRate * 2, true); // ByteRate (SampleRate * NumChannels * BitsPerSample/8)
-  view.setUint16(32, 2, true); // BlockAlign (NumChannels * BitsPerSample/8)
-  view.setUint16(34, 16, true); // BitsPerSample (16 bits)
-
-  // data sub-chunk
-  writeString(view, 36, 'data');
-  view.setUint32(40, bytes.length, true);
-
-  // Write PCM data
-  const pcmData = new Uint8Array(buffer, 44);
-  pcmData.set(bytes);
-
-  const blob = new Blob([buffer], { type: 'audio/wav' });
-  return URL.createObjectURL(blob);
-}
-
-function base64ToBytes(base64: string): Uint8Array {
-  const binaryString = atob(base64);
-  const len = binaryString.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes;
-}
-
 export default function App() {
   const [viewMode, setViewMode] = useState<'podcast' | 'video' | 'subscribe'>('podcast');
   const [topic, setTopic] = useState('Tell Me About Yourself');
@@ -304,13 +256,27 @@ export default function App() {
   const [inputMode, setInputMode] = useState<'generate' | 'import'>('generate');
   const [importedScript, setImportedScript] = useState('');
 
-  const [isGeneratingScript, setIsGeneratingScript] = useState(false);
-  const [scriptProgress, setScriptProgress] = useState<string | null>(null);
-  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [podcastData, setPodcastData] = useState<PodcastData | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [audioProgress, setAudioProgress] = useState<string | null>(null);
+  const [audioDurationSeconds, setAudioDurationSeconds] = useState<number | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [scriptRunId, setScriptRunId] = useState<string | null>(null);
+  const [ttsRunId, setTtsRunId] = useState<string | null>(null);
+  const [aiHealth, setAiHealth] = useState<AiHealthState>('checking');
+  const [aiHealthMessage, setAiHealthMessage] = useState<string>('Checking the AI service…');
+
+  // The runs are owned by the workflow runtime; this component subscribes.
+  const { run: scriptRun, cancel: cancelScriptRun } = useWorkflowRun(scriptRunId, workflowRuntime);
+  const { run: ttsRun, cancel: cancelTtsRun } = useWorkflowRun(ttsRunId, workflowRuntime);
+
+  const isGeneratingScript = scriptRun !== null && !isTerminal(scriptRun.status);
+  const isGeneratingAudio = ttsRun !== null && !isTerminal(ttsRun.status);
+  const scriptProgress = scriptRun ? scriptRun.phase ?? 'Working…' : null;
+  const audioProgress = ttsRun ? ttsRun.phase ?? 'Working…' : null;
+  const error = localError ?? scriptRun?.error?.message ?? ttsRun?.error?.message ?? null;
+  const audioUrlRef = useRef<string | null>(null);
+  audioUrlRef.current = audioUrl;
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -385,12 +351,17 @@ export default function App() {
     };
   }, [audioUrl]);
 
-  const processImportedScript = async () => {
-    setIsGeneratingScript(true);
-    setScriptProgress('Parsing script...');
-    setError(null);
+  const processImportedScript = () => {
+    // Local, synchronous parsing: no AI call, so no run is created. Failures are
+    // reported, never silently replaced with generated content.
+    setIsImporting(true);
+    setLocalError(null);
     setPodcastData(null);
-    setAudioUrl(null);
+    setAudioUrl((previous) => {
+      if (previous) URL.revokeObjectURL(previous);
+      return null;
+    });
+    setAudioDurationSeconds(null);
     setIsPlaying(false);
 
     try {
@@ -441,370 +412,159 @@ export default function App() {
         },
         script: scriptLines
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || 'Failed to parse script.');
+      setLocalError(toAppError(err, 'Failed to parse the imported script.').message);
     } finally {
-      setIsGeneratingScript(false);
-      setScriptProgress(null);
+      setIsImporting(false);
     }
   };
 
-  const generatePodcast = async () => {
-    setIsGeneratingScript(true);
-    setError(null);
+  /**
+   * W1 intent. The batches, retries, timeouts, cancellation and validation all
+   * live in the workflow definition — this component only starts the run and
+   * renders it. A second click with the same input cannot create a second run
+   * (idempotency key), which is what makes double-click safe.
+   */
+  const generatePodcast = () => {
+    setLocalError(null);
     setPodcastData(null);
-    setAudioUrl(null);
+    setAudioUrl((previous) => {
+      if (previous) URL.revokeObjectURL(previous);
+      return null;
+    });
+    setAudioDurationSeconds(null);
     setIsPlaying(false);
-    setScriptProgress(null);
 
-    try {
-      let targetLineCount = 15;
-      if (duration.includes('3-5')) { targetLineCount = 60; }
-      if (duration.includes('10')) { targetLineCount = 120; }
-      if (duration.includes('15')) { targetLineCount = 200; } // Increased line count to hit ~2600 words naturally
-      if (duration.includes('20')) { targetLineCount = 260; }
-      if (duration.includes('25')) { targetLineCount = 320; }
-      if (duration.includes('30')) { targetLineCount = 400; }
-
-      const batchSize = 50;
-      const totalBatches = Math.ceil(targetLineCount / batchSize);
-      let allScriptLines: any[] = [];
-      let finalMetadata: any = null;
-
-      const targetWordsThisBatch = Math.floor(2650 / totalBatches);
-
-      for (let batch = 1; batch <= totalBatches; batch++) {
-        setScriptProgress(`Generating script batch ${batch} of ${totalBatches}...`);
-        
-        const linesToGenerate = batch === totalBatches && targetLineCount % batchSize !== 0 ? targetLineCount % batchSize : batchSize;
-        const isSingle = speakerCount === 'Single Speaker';
-
-        const systemInstruction = `Act as an elite Content Producer for an ESL Podcast, as well as an expert voice director, speech coach, podcast producer, and AI voice performance engineer. Your task is to write a ${isSingle ? 'solo' : '2-host'} script that sounds perfectly human, very educational, slow-paced, calm, and perfectly replicates the style of our successful reference episodes ("Living in Another Country" & "Social Media and Real Life").
-
-1. ESL EXACT CLONING PATTERN (CRITICAL REQUIREMENTS):
-- Language Level: MUST strictly match ${level} (If Beginner A1/A2, use ONLY very simple sentences, basic vocabulary, clear grammar).
-- Tone & Pace: ${pace}. The conversation MUST NOT be overly hyped. It is gentle, warm, encouraging, and clear.
-- Educational Pattern: Naturally pause to explain 2-3 slightly larger words over the course of the episode (e.g., Host B: "What does X mean?", Host A: "Ah, X means...").
-- Anecdotal Pattern: Host B frequently shares a simple, relatable, slightly funny story of making a mistake or observing something related to the topic.
-- EXACT WORD COUNT CONSTRAINT: The total script across all batches MUST absolutely be between 2600 and 2700 words. You are generating one batch. Expand your dialogue with natural back-and-forth, gentle laughter [laughs], and thoughtful reactions (Hmm, Oh wow, Yes) to ensure you generate exactly ~${targetWordsThisBatch} words for this batch.
-
-2. HOST DYNAMICS & TURN-TAKING:
-${isSingle 
-  ? `- Host (${hostAName || 'Julia'}): The welcoming ESL teacher. Calm, encouraging, and clear.\n- IMPORTANT: In the JSON output, the \`speaker\` field MUST be exactly "Host A".` 
-  : `- Host A (${hostAName || 'Julia'}): The primary guide and teacher. Holds a "secret trick" to reveal later. Leads the topic warmly.\n- Host B (${hostBName || 'James'}): The curious learner and friend. Asks clarifying questions, shares funny personal anecdotes, and reacts naturally. Often asks what a word means.\n- IMPORTANT: In the JSON output, the \`speaker\` field MUST be exactly "Host A" or "Host B".`
-}
-- USE NAMES IN DIALOGUE: The hosts MUST refer to each other by their actual names (${hostAName} and ${hostBName}) frequently ("Thanks, ${hostAName}", "Well, ${hostBName}...").
-
-3. SCRIPT PROGRESSION ARCHITECTURE:
-- The Intro (Batch 1): Warm welcome to ${channelName}. Introduce the topic calmly. Host A MUST tease a "small secret" or "useful trick" about the topic but explicitly refuse to reveal it until the END of the episode to keep listeners engaged.
-- The Middle (Mid Batches): Break down the topic. Host B shares relatable anecdotes. Host A explains simple vocabulary words that come up.
-- The Outro (Final Batch): Reveal the "secret trick". Conclude warmly. End with a Call to Action asking listeners to comment a specific single ALL-CAPS word. Say thank you and "Bye-bye!".
-
-4. DURATION & JSON FORMATTING:
-- Target Duration: ${duration}.
-- You MUST generate EXACTLY ${linesToGenerate} lines of dialogue for this specific batch.
-- CRITICAL JSON FORMATTING: Do NOT use literal newlines or line breaks inside the JSON 'text' strings. All text must be a single continuous string without line breaks.
-- If you generate fewer than ${linesToGenerate} lines, you fail.
-
-5. INTELLIGENT DELIVERY TAG SYSTEM:
-Sparingly and naturally insert bracketed Intelligent Delivery Tags directly into the dialogue text to direct the delivery, making the script sound like a real human conversation instead of someone reading a book.
-Follow these coaching rules strictly:
-- Do NOT add delivery tags randomly. Only insert them where they genuinely improve the delivery.
-- If a sentence is already short, natural, and expressive, leave it untouched. Never overload the script with unnecessary labels. Natural speech is always preferred over excessive tagging.
-- Delivery tags may appear before a sentence, inside a sentence, between phrases, before important words, before emotional transitions, before dramatic pauses, before punchlines, before calls-to-action, or before key conclusions. They are NOT limited to the beginning of a sentence.
-- Dynamic Emotion Switching: Never keep the same emotion throughout an entire sentence. If the meaning changes, change the delivery. Example: start with curiosity -> build excitement -> pause -> finish confidently.
-- Emotional Curve: Every paragraph should have a natural emotional journey.
-- Pause Rules: Insert [pause], [short pause], [long pause], or [micro pause] only where a real speaker would naturally breathe or create anticipation (e.g. before revealing important information, before contrasts, before punchlines, before key statistics, or before conclusions).
-- Storytelling Rules: Whenever the script tells a story, slow down, be expressive, increase emotion gradually, and finish with impact.
-- Question Rules: Questions should sound genuinely curious. Do NOT read them flat. Use [curious] or [rising tone] when appropriate.
-- Call To Action: Gradually increase energy and end confidently. Example: [warm] -> [build energy] -> [strong emphasis] -> [end confidently].
-- Humor Rules: If the script contains humor, use [playful], [micro pause] before the punchline.
-
-ALLOWED INTELLIGENT DELIVERY TAGS (Use ONLY tags from this exact list, in lowercase brackets):
-- Speed: [slow], [very slow], [fast], [very fast], [moderate pace], [accelerate], [slow down]
-- Volume: [soft], [very soft], [loud], [very loud], [quietly], [fade out]
-- Energy: [low energy], [medium energy], [high energy], [build energy], [calm], [relaxed], [energetic]
-- Emotion: [happy], [warm], [friendly], [confident], [curious], [excited], [surprised], [serious], [sad], [empathetic], [inspirational], [dramatic], [playful], [humorous], [passionate]
-- Emphasis: [emphasize], [strong emphasis], [light emphasis], [stress the next word], [keyword emphasis]
-- Pitch: [high pitch], [low pitch], [rising tone], [falling tone], [gentle tone]
-- Pauses: [pause], [short pause], [long pause], [micro pause], [beat]
-- Articulation: [clearly], [carefully], [crisp pronunciation], [natural rhythm], [conversational]
-- Transitions: [build suspense], [increase intensity], [soften], [relax], [end warmly], [end confidently], [end with curiosity]
-
-6. HUMAN SFX ENHANCEMENT SYSTEM:
-Sparingly inject appropriate and realistic Human Sound Effect Tags (SFX) inline with the speech only when they genuinely fit the speaker's emotion, reaction, or conversational flow to make the hosts sound incredibly real, warm, and expressive.
-Follow these rules strictly:
-- Do NOT insert SFX randomly. Only add an SFX tag when it naturally matches the speaker's emotion, reaction, or conversational flow.
-- The purpose of every SFX tag is to make the script sound more human, expressive, and natural—not theatrical or exaggerated.
-- Use SFX sparingly and only where they genuinely improve the listening experience.
-- Never place SFX after every sentence. Never interrupt important information with unnecessary SFX. Never reduce clarity or professionalism.
-- Avoid repetitive use of the same SFX. Choose different SFX naturally throughout the script.
-- If no SFX is needed, leave the sentence unchanged.
-- Preserve the original wording unless an SFX genuinely enhances the delivery.
-
-ALLOWED HUMAN SFX TAGS (Use ONLY tags from this exact list, in lowercase brackets):
-- Laughter: [laugh], [laughs], [chuckles], [giggles], [bursts into laughter], [laughs softly], [laughs nervously], [evil laugh]
-- Smiling & Positive Reactions: [smiles], [smiles warmly], [grins], [soft smile], [beams], [smirks]
-- Breathing: [breathes deeply], [inhales], [exhales], [takes a deep breath], [sharp inhale], [slow exhale], [breathes heavily], [catches breath]
-- Pauses: [pause], [short pause], [long pause], [micro pause], [silence], [beat], [dramatic pause]
-- Whispering & Voice Modulation: [whispers], [mutters], [murmurs], [speaks softly], [raises voice], [lowers voice], [shouts]
-- Surprise: [gasps], [gasps softly], [gasp], [startled], [shocked silence]
-- Thinking & Hesitation: [hesitates], [thinks], [brief hesitation], [searches for words], [pauses to think]
-- Emotion: [sigh], [sighs], [sighs deeply], [sighs heavily], [groans], [moans], [moans softly], [sniffs], [sniffles], [voice cracks], [chokes up]
-- Mouth Sounds: [clears throat], [coughs], [swallows], [gulps], [clicks tongue], [licks lips], [yawns]
-
-7. DYNAMIC VOICE PERFORMANCE & EMOTIONAL DIRECTION (CRITICAL PERFORMANCE MANDATE):
-The dialogue text and associated 'emotion' tags MUST adhere to these strict voice acting rules:
-- Start, develop, and finish each sentence with different emotional intensity when appropriate.
-- Allow the emotional tone of the dialogue to evolve naturally as the meaning changes within the sentence. Ensure each line's dialogue is written to feel conversational, authentic, emotionally alive, and never flat or monotone.
-- For each generated line, populate the 'emotion' field with a dynamic transition style (e.g. "Neutral to Curious", "Curious to Excited", "Calm to Confident", "Serious to Warm", "Warm to Inspirational", "Inspirational to Powerful", "Powerful to Gentle", "Gentle to Humorous", "Humorous to Serious", "Surprise to Excitement", "Excitement to Calm").`;
-
-        let batchContents = `Topic: ${topic}\n${channelName ? `Channel Name: ${channelName}\n` : ''}Format: ${contentFormat}\nSpeaker Setup: ${speakerCount}\nLevel: ${level}\nDuration: ${duration}\nRealism: ${realism}\nAudience: ${audience}\nBatch: ${batch} of ${totalBatches}\n`;
-        
-        batchContents += `\nCRITICAL LENGTH REQUIREMENT: You MUST generate approximately ${targetWordsThisBatch} words for this batch to ensure the final total hits the strict 2600-2700 word requirement. Make the dialogue rich and flowing.`;
-
-        if (batch === 1) {
-          batchContents += `\n\nINSTRUCTIONS FOR BATCH 1: Start with a warm welcome back to ${channelName}. Introduce the topic calmly. Crucially, Host A MUST tease a 'small secret' or 'useful tip' related to the topic, but tell Host B they will only reveal it at the end of the episode.`;
-        } else if (batch === totalBatches) {
-          const previousLines = allScriptLines.slice(-8).map(l => `${l.speaker}: ${l.text}`).join('\n');
-          batchContents += `\n\nINSTRUCTIONS FOR BATCH ${batch}: This is the final batch. Continue seamlessly from this context:\n${previousLines}\n\nYou MUST finally reveal the 'secret trick' Host A teased in the beginning. Conclude warmly. Include a Call to Action asking listeners to comment a specific single ALL-CAPS word. Say thank you and 'Bye-bye!'.`;
-        } else {
-          const previousLines = allScriptLines.slice(-8).map(l => `${l.speaker}: ${l.text}`).join('\n');
-          batchContents += `\n\nINSTRUCTIONS FOR BATCH ${batch}: Continue the deep dive. Continue seamlessly from this context:\n${previousLines}\n\nInclude a relatable personal anecdote from Host B. Include at least one natural vocabulary explanation where Host A explains a 'big word' to Host B.`;
-        }
-
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.1-pro-preview',
-          contents: batchContents,
-          config: {
-            systemInstruction,
-            responseMimeType: 'application/json',
-            maxOutputTokens: 8192,
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                metadata: {
-                  type: Type.OBJECT,
-                  properties: {
-                    title: { type: Type.STRING },
-                    level: { type: Type.STRING },
-                    estimated_duration: { type: Type.STRING },
-                    youtube_hook: { type: Type.STRING, description: "A catchy title/hook idea for the YouTube video" },
-                  },
-                },
-                script: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      speaker: { type: Type.STRING, description: "MUST be exactly 'Host A' or 'Host B'" },
-                      emotion: { type: Type.STRING },
-                      text: { type: Type.STRING }
-                    },
-                  },
-                },
-              },
-            },
-          },
-        });
-
-        if (response.text) {
-          let jsonText = response.text;
-          try {
-            const sanitizedText = jsonText.replace(/[\r\n\t]+/g, ' ');
-            const data = JSON.parse(sanitizedText) as PodcastData;
-            if (batch === 1) {
-              finalMetadata = data.metadata;
-            }
-            allScriptLines = [...allScriptLines, ...data.script];
-            setPodcastData({ metadata: finalMetadata || data.metadata, script: allScriptLines });
-          } catch (parseError) {
-            console.warn("JSON parse failed, attempting to fix truncated JSON...", parseError);
-            const lastValidComma = jsonText.lastIndexOf('},');
-            if (lastValidComma !== -1) {
-              jsonText = jsonText.substring(0, lastValidComma + 1) + ']}';
-            } else {
-              const lastValidBrace = jsonText.lastIndexOf('}');
-              if (lastValidBrace !== -1) {
-                jsonText = jsonText.substring(0, lastValidBrace + 1) + ']}';
-              }
-            }
-            
-            try {
-              const sanitizedText = jsonText.replace(/[\r\n\t]+/g, ' ');
-              const data = JSON.parse(sanitizedText) as PodcastData;
-              if (batch === 1) {
-                finalMetadata = data.metadata;
-              }
-              allScriptLines = [...allScriptLines, ...data.script];
-              setPodcastData({ metadata: finalMetadata || data.metadata, script: allScriptLines });
-            } catch (secondError) {
-              throw new Error('Failed to parse script data even after fixing. Please try a shorter duration or different topic.');
-            }
-          }
-        } else {
-          throw new Error('No text returned from model');
-        }
-      }
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || 'Failed to generate podcast script.');
-    } finally {
-      setIsGeneratingScript(false);
-      setScriptProgress(null);
-    }
+    const run = workflowRuntime.start(
+      'podcast',
+      {
+        topic: topic.trim(),
+        channelName,
+        duration,
+        style: style ?? STYLES[0] ?? 'Educational & Engaging',
+        level,
+        speakerCount: speakerCount === 'Single Speaker' ? 'Single Speaker' : 'Dual Speaker',
+        audience,
+        pace,
+        realism,
+        ...(hostAName ? { hostA: hostAName } : {}),
+        ...(hostBName ? { hostB: hostBName } : {}),
+      },
+      { deps: { gateway: getAiGateway() } },
+    );
+    setScriptRunId(run.id);
   };
 
-  const generateAudio = async () => {
-    if (!podcastData) return;
-    
-    setIsGeneratingAudio(true);
-    setError(null);
-    setAudioProgress('Initializing...');
-
-    try {
-      const chunkSize = 10;
-      const audioChunks: Uint8Array[] = [];
-      const totalChunks = Math.ceil(podcastData.script.length / chunkSize);
-      
-      for (let i = 0; i < podcastData.script.length; i += chunkSize) {
-        const chunkLines = podcastData.script.slice(i, i + chunkSize);
-        setAudioProgress(`Synthesizing part ${Math.floor(i/chunkSize) + 1} of ${totalChunks}...`);
-        
-        const isSingle = speakerCount === 'Single Speaker';
-        
-        const voiceDirectionInstructions = `
-Apply these strict Dynamic Voice Direction Rules to your voice synthesis performance:
-1. Act as a highly professional storyteller and natural podcast host talking directly to a close friend. Avoid reading flatly like a textbook or audiobook.
-2. Emotional Performance Rule: Do not maintain a single emotion or tone throughout an entire sentence. Allow the emotional tone of your voice to evolve naturally as the meaning changes. Start, develop, and finish each sentence with different emotional intensity (e.g. begin with one state, change energy naturally in the middle, and finish with a different emotional color).
-3. Natural Emotion Flow: Make smooth transitions based on the tagged tone instructions (e.g., Neutral to Curious, Curious to Excited, Calm to Confident, Serious to Warm, Warm to Inspirational, Inspiration to Powerful, Powerful to Gentle, Gentle to Humorous, Humorous to Serious, Surprise to Excitement, Excitement to Calm).
-4. Voice Dynamics: Continuously vary emotion, energy, pitch, pace, intonation, rhythm, volume, emphasis, and pauses. Emphasize only the most meaningful words and insert natural micro-pauses where people would normally breathe or think.
-5. Human Sound Effects (SFX) Performance Rules:
-The script contains bracketed vocal sound effect tags (like [laugh], [laughs], [chuckles], [giggles], [bursts into laughter], [laughs softly], [smiles], [smiles warmly], [grins], [inhales], [exhales], [takes a deep breath], [breathes deeply], [sharp inhale], [slow exhale], [pause], [short pause], [long pause], [beat], [whispers], [mutters], [speaks softly], [raises voice], [lowers voice], [gasps], [gasp], [hesitates], [thinks], [brief hesitation], [sighs], [sighs deeply], [groans], [clears throat], [clicks tongue], [cheers], [whoops], [claps], [applauds], [hums], [deep sigh]).
-You MUST perform these vocal sound effects realistically in your output voice.
-- For laughter/smile tags: Blend warm, authentic chuckles or smiling tone into the spoken words.
-- For breathing/sigh tags: Render realistic breath intakes, deep sighs, or exhalations.
-- For pause/hesitation tags: Insert natural silences and organic hesitations corresponding to the tag.
-- For vocal modulation (whisper, raised voice): Modulate your output volume and intimacy.
-- For other sound effects (throat clears, gasps, claps): Emulate or suggest those physical sounds naturally.
-Never speak the bracketed text literally (e.g. do NOT say the word "laughs", "sighs", or "pause"). Direct all your expressiveness to act them out physically!
-
-6. Voice Delivery Tags Performance Rules:
-The script also contains bracketed speech-delivery control tags:
-- Speed tags (like [slow], [very slow], [fast], [very fast], [moderate pace], [accelerate], [slow down]): Adjust your speaking pace accordingly.
-- Volume tags (like [soft], [very soft], [loud], [very loud], [quietly], [fade out]): Adjust your volume level to be softer or louder.
-- Energy tags (like [low energy], [medium energy], [high energy], [build energy], [calm], [relaxed], [energetic]): Shift your vocal intensity and passion.
-- Emotion tags (like [happy], [warm], [friendly], [confident], [curious], [excited], [surprised], [serious], [sad], [empathetic], [inspirational], [dramatic], [playful], [humorous], [passionate]): Apply the corresponding warmth, laughter undertones, or serious gravitas.
-- Emphasis tags (like [emphasize], [strong emphasis], [light emphasis], [stress the next word], [keyword emphasis]): Accentuate the next words with focused clarity and natural prominence.
-- Pitch tags (like [high pitch], [low pitch], [rising tone], [falling tone], [gentle tone]): Adjust your pitch or tone style.
-- Pauses: [pause], [short pause], [long pause], [micro pause], [beat] (Wait/breath cleanly).
-- Articulation tags (like [clearly], [carefully], [crisp pronunciation], [natural rhythm], [conversational]): Pronounce clearly and flow natively.
-- Transitions (like [build suspense], [increase intensity], [soften], [relax], [end warmly], [end confidently], [end with curiosity]): Transition your delivery style dynamically.
-Never read any of these tags aloud; always execute them as vocal commands!
-The overall delivery must feel human, dynamic, expressive, engaging, emotionally rich, and natural. Never flat or monotone.
-`;
-
-        const singleSpeakerPrompt = `Perform the following solo podcast script according to these rules: ${voiceDirectionInstructions}\n\nScript to read:\n` + 
-          chunkLines.map(line => {
-            const emotionTag = line.emotion ? `[Transition: ${line.emotion}] ` : '';
-            return `${emotionTag}${line.text}`;
-          }).join(' ');
-
-        const dualSpeakerPrompt = `Perform the following conversation between ${hostAName || 'Sarah'} and ${hostBName || 'James'} according to these rules: ${voiceDirectionInstructions}\n\nScript to perform:\n` + 
-          chunkLines.map(line => {
-            const isHostA = line.speaker === 'Host A' || line.speaker.toLowerCase() === (hostAName || 'Sarah').toLowerCase();
-            const speakerName = isHostA ? (hostAName || 'Sarah') : (hostBName || 'James');
-            const emotionTag = line.emotion ? `[Tone: ${line.emotion}] ` : '';
-            return `${speakerName}: ${emotionTag}${line.text}`;
-          }).join('\n');
-          
-        const prompt = isSingle ? singleSpeakerPrompt : dualSpeakerPrompt;
-
-        let attempt = 0;
-        let success = false;
-        let base64Audio: string | undefined;
-
-        while (attempt < 3 && !success) {
-          try {
-            const config: any = {
-              responseModalities: [Modality.AUDIO],
-              speechConfig: isSingle ? {
-                voiceConfig: {
-                  prebuiltVoiceConfig: { voiceName: hostAVoice }
-                }
-              } : {
-                multiSpeakerVoiceConfig: {
-                  speakerVoiceConfigs: [
-                        {
-                            speaker: hostAName || 'Sarah',
-                            voiceConfig: {
-                              prebuiltVoiceConfig: { voiceName: hostAVoice }
-                            }
-                        },
-                        {
-                            speaker: hostBName || 'James',
-                            voiceConfig: {
-                              prebuiltVoiceConfig: { voiceName: hostBVoice }
-                            }
-                        }
-                  ]
-                }
-              }
-            };
-
-            const response = await ai.models.generateContent({
-              model: "gemini-2.5-flash-preview-tts",
-              contents: [{ parts: [{ text: prompt }] }],
-              config
-            });
-
-            base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-            success = true;
-          } catch (err: any) {
-            if (err?.status === 'RESOURCE_EXHAUSTED' || err?.message?.includes('429') || err?.message?.includes('quota')) {
-              attempt++;
-              if (attempt >= 3) throw err;
-              setAudioProgress(`Rate limited. Retrying part ${Math.floor(i/chunkSize) + 1} in ${attempt * 5}s...`);
-              await new Promise(r => setTimeout(r, attempt * 5000));
-            } else {
-              throw err;
-            }
-          }
-        }
-
-        if (base64Audio) {
-          audioChunks.push(base64ToBytes(base64Audio));
-        } else {
-          throw new Error(`No audio data returned for part ${Math.floor(i/chunkSize) + 1}`);
-        }
-        
-        // Add a small baseline delay between chunks to avoid hitting RPM limits too fast
-        if (i + chunkSize < podcastData.script.length) {
-          await new Promise(r => setTimeout(r, 2000));
-        }
-      }
-
-      setAudioProgress('Processing audio...');
-      
-      const totalLength = audioChunks.reduce((acc, chunk) => acc + chunk.length, 0);
-      const combinedAudio = new Uint8Array(totalLength);
-      let offset = 0;
-      for (const chunk of audioChunks) {
-        combinedAudio.set(chunk, offset);
-        offset += chunk.length;
-      }
-
-      const url = createWavUrlFromBytes(combinedAudio);
-      setAudioUrl(url);
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || 'Failed to generate audio. Please try again.');
-    } finally {
-      setIsGeneratingAudio(false);
-      setAudioProgress(null);
+  /** W2 intent — bounded retry/timeout come from the workflow policy. */
+  const generateAudio = () => {
+    if (!podcastData) {
+      setLocalError('Generate or import a script before synthesising audio.');
+      return;
     }
+    setLocalError(null);
+
+    const isSingle = speakerCount === 'Single Speaker';
+    const lines: SpeechLine[] = podcastData.script.map((line) => ({
+      speaker: line.speaker,
+      ...(line.emotion ? { emotion: line.emotion } : {}),
+      text: line.text,
+    }));
+
+    const run = workflowRuntime.start(
+      'tts',
+      {
+        lines,
+        voiceConfig: {
+          mode: isSingle ? 'single' : 'multi',
+          hostA: hostAVoice,
+          ...(isSingle ? {} : { hostB: hostBVoice }),
+          speakerNames: [hostAName || 'Sarah', hostBName || 'James'] as [string, string],
+        },
+      },
+      { deps: { gateway: getAiGateway() } },
+    );
+    setTtsRunId(run.id);
   };
+
+  // Copy a succeeded script run into local state (subscription, not orchestration).
+  const appliedScriptRunRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!scriptRun || scriptRun.status !== 'succeeded') return;
+    if (appliedScriptRunRef.current === scriptRun.id) return;
+    appliedScriptRunRef.current = scriptRun.id;
+
+    const result = scriptRun.result as { metadata?: PodcastData['metadata']; script?: WorkflowScriptLine[] } | null;
+    if (!result?.metadata || !Array.isArray(result.script) || result.script.length === 0) {
+      setLocalError('The generated script could not be read.');
+      return;
+    }
+    setPodcastData({ metadata: result.metadata, script: result.script });
+  }, [scriptRun]);
+
+  // Build the object URL from the validated audio blob; the previous URL is revoked.
+  const appliedTtsRunRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!ttsRun || ttsRun.status !== 'succeeded') return;
+    if (appliedTtsRunRef.current === ttsRun.id) return;
+    appliedTtsRunRef.current = ttsRun.id;
+
+    const result = ttsRun.result as { blob?: Blob; durationSeconds?: number } | null;
+    const blob = result?.blob;
+    if (!(blob instanceof Blob) || blob.size <= 0) {
+      setLocalError('The generated audio could not be read.');
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    setAudioUrl((previous) => {
+      if (previous) URL.revokeObjectURL(previous);
+      return url;
+    });
+    setAudioDurationSeconds(typeof result?.durationSeconds === 'number' ? result.durationSeconds : null);
+  }, [ttsRun]);
+
+  // Release the object URL and stop in-flight runs when the studio unmounts.
+  useEffect(() => {
+    return () => {
+      const url = audioUrlRef.current;
+      if (url) URL.revokeObjectURL(url);
+      workflowRuntime.cancelAll('The podcast studio was closed.');
+    };
+  }, []);
+
+  // The connection badge reflects /api/health/ai — it is never assumed (INV-010).
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+
+    getAiGateway()
+      .health(controller.signal)
+      .then((health) => {
+        if (!active) return;
+        setAiHealth(health.configured ? 'ready' : 'missing');
+        setAiHealthMessage(
+          health.configured
+            ? `AI Connected (${health.operations.length} operations)`
+            : 'AI is not configured on this server.',
+        );
+      })
+      .catch((err: unknown) => {
+        if (!active) return;
+        setAiHealth('error');
+        setAiHealthMessage(toAppError(err, 'The AI service could not be reached.').message);
+      });
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, []);
+
+  const audioProgressPercent = useMemo(() => {
+    if (!ttsRun) return 0;
+    if (ttsRun.status === 'succeeded') return 100;
+    return Math.max(0, Math.min(100, ttsRun.progress));
+  }, [ttsRun]);
 
   const copyScript = () => {
     if (!podcastData) return;
@@ -879,9 +639,27 @@ The overall delivery must feel human, dynamic, expressive, engaging, emotionally
           </div>
 
           <div className="flex items-center gap-4">
-            <div className="text-xs font-medium text-gray-400 flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-full border border-white/10">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]"></span>
-              API Connected
+            <div
+              className="text-xs font-medium text-gray-400 flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-full border border-white/10"
+              title={aiHealthMessage}
+              aria-label={aiHealthMessage}
+            >
+              <span
+                className={`w-2 h-2 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.6)] ${
+                  aiHealth === 'ready'
+                    ? 'bg-emerald-500 animate-pulse'
+                    : aiHealth === 'checking'
+                      ? 'bg-amber-400 animate-pulse'
+                      : 'bg-rose-500'
+                }`}
+              ></span>
+              {aiHealth === 'ready'
+                ? 'AI Connected'
+                : aiHealth === 'checking'
+                  ? 'Checking AI…'
+                  : aiHealth === 'missing'
+                    ? 'AI Not Configured'
+                    : 'AI Unavailable'}
             </div>
           </div>
         </div>
@@ -1171,8 +949,17 @@ The overall delivery must feel human, dynamic, expressive, engaging, emotionally
                     </div>
                 )}
                 <button
-                  onClick={inputMode === 'generate' ? generatePodcast : processImportedScript}
-                  disabled={isGeneratingScript || (inputMode === 'generate' ? !topic.trim() : !importedScript.trim())}
+                  onClick={
+                    isGeneratingScript
+                      ? () => cancelScriptRun('Script generation cancelled.')
+                      : inputMode === 'generate'
+                        ? generatePodcast
+                        : processImportedScript
+                  }
+                  disabled={
+                    !isGeneratingScript &&
+                    (isImporting || (inputMode === 'generate' ? !topic.trim() : !importedScript.trim()))
+                  }
                   className={`w-full text-white rounded-xl px-4 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-all transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed ${
                     inputMode === 'generate' 
                       ? 'bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 shadow-[0_0_20px_rgba(239,68,68,0.2)] hover:shadow-[0_0_30px_rgba(239,68,68,0.4)]' 
@@ -1180,7 +967,7 @@ The overall delivery must feel human, dynamic, expressive, engaging, emotionally
                   }`}
                 >
                   {isGeneratingScript ? (
-                    <><Loader2 className="w-5 h-5 animate-spin" /> {scriptProgress || 'Processing...'}</>
+                    <><Square className="w-5 h-5" /> Cancel — {scriptProgress || 'Processing...'}</>
                   ) : inputMode === 'generate' ? (
                     <><Sparkles className="w-5 h-5" /> Generate Viral Script</>
                   ) : (
@@ -1316,25 +1103,18 @@ The overall delivery must feel human, dynamic, expressive, engaging, emotionally
                       <div className="w-full bg-black/50 rounded-full h-1.5 overflow-hidden border border-white/5">
                         <div 
                           className="bg-gradient-to-r from-emerald-500 to-teal-400 h-1.5 rounded-full transition-all duration-300 ease-out" 
-                          style={{ width: (() => {
-              if (!audioProgress.includes('part')) return '100%';
-              const partMatch = audioProgress.match(/part\s+(\d+)\s+of\s+(\d+)/i);
-              if (!partMatch) return '0%';
-              const part = Number(partMatch[1]);
-              const total = Number(partMatch[2]);
-              return total > 0 ? `${Math.min(100, Math.max(0, (part / total) * 100))}%` : '0%';
-            })() }}
+                          style={{ width: `${audioProgressPercent}%` }}
                         ></div>
                       </div>
                     </div>
                   )}
                   <button
-                    onClick={generateAudio}
-                    disabled={isGeneratingAudio || !podcastData}
+                    onClick={isGeneratingAudio ? () => cancelTtsRun('Speech synthesis cancelled.') : generateAudio}
+                    disabled={!isGeneratingAudio && !podcastData}
                     className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-4 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(16,185,129,0.2)] hover:shadow-[0_0_30px_rgba(16,185,129,0.4)] transform hover:-translate-y-0.5 active:translate-y-0"
                   >
                     {isGeneratingAudio ? (
-                      <><Loader2 className="w-5 h-5 animate-spin" /> Synthesizing Audio...</>
+                      <><Square className="w-5 h-5" /> Stop — {audioProgress || 'Synthesizing…'}</>
                     ) : (
                       <><Volume2 className="w-5 h-5" /> Generate Audio Track</>
                     )}
@@ -1597,14 +1377,18 @@ The overall delivery must feel human, dynamic, expressive, engaging, emotionally
                   <p className="text-gray-400 text-sm mb-6 text-center max-w-md">Review your script above. You can edit any line by hovering over it and clicking the edit icon. Once you're happy, generate the final audio.</p>
                   <button
                     onClick={() => {
+                      if (isGeneratingAudio) {
+                        cancelTtsRun('Speech synthesis cancelled.');
+                        return;
+                      }
                       window.scrollTo({ top: 0, behavior: 'smooth' });
                       generateAudio();
                     }}
-                    disabled={isGeneratingAudio}
+                    disabled={false}
                     className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-8 py-4 text-base font-bold flex items-center justify-center gap-3 transition-all shadow-[0_0_20px_rgba(16,185,129,0.2)] hover:shadow-[0_0_30px_rgba(16,185,129,0.4)] transform hover:-translate-y-0.5"
                   >
                     {isGeneratingAudio ? (
-                      <><Loader2 className="w-5 h-5 animate-spin" /> Synthesizing Audio...</>
+                      <><Square className="w-5 h-5" /> Stop Synthesis</>
                     ) : (
                       <><Volume2 className="w-5 h-5" /> Generate Final Audio Track</>
                     )}

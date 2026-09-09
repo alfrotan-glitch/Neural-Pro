@@ -46,9 +46,10 @@ export function resolveCaptionImportTheme(context: CaptionImportThemeContext = {
   );
 }
 
-export function normalizeCaptionTiming(block: CaptionImportBlock) {
-  const startAt = parseCaptionTimestamp(block.start_time);
-  const endAt = parseCaptionTimestamp(block.end_time);
+/** `fps` is mandatory: caption timecodes are frame-based (D-022). */
+export function normalizeCaptionTiming(block: CaptionImportBlock, fps: number) {
+  const startAt = parseCaptionTimestamp(block.start_time, fps);
+  const endAt = parseCaptionTimestamp(block.end_time, fps);
   if (endAt <= startAt) {
     throw new Error(`Caption ${block.id} has non-positive duration`);
   }

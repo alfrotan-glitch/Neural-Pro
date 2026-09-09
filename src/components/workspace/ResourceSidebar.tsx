@@ -4,6 +4,8 @@ import { createTrackSnapshotCommand } from '../../features/video-studio/project/
 import { createDedicatedTimelineTrack } from '../../features/video-studio/project/services/projectService';
 import { normalizeCaptionTheme, resolveCaptionImportTheme, normalizeCaptionTiming } from '../../features/video-studio/captions/services/captionImportService';
 import { parseCaptionTimestamp } from '../../features/video-studio/captions/services/captionTimecodeService';
+import { getProjectFps } from '../../features/video-studio/captions/services/captionProjectFps';
+import { runCaptions } from '../../app/workflows/captions/runCaptionsWorkflow';
 import { importSrtFile } from '../../features/video-studio/captions/services/srtImporter';
 import { 
   FolderOpen, Music, Type, Smile, Sparkles, Layers, 
@@ -337,32 +339,21 @@ export const ResourceSidebar: React.FC<ResourceSidebarProps> = ({ onAddClip }) =
       await new Promise(resolve => setTimeout(resolve, 1000));
       setTranscribeProgress("Calling Gemini Speech-to-Text engine...");
       
-      const response = await fetch('/api/generate-captions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          audioClipName: clipName,
-          duration: duration,
-          topicPrompt: customPrompt
-        })
+      // W3 caption workflow: bounded, cancellable, typed failures — no silent
+      // substitute content when the AI call fails.
+      const projectFps = getProjectFps();
+      const captions = await runCaptions({
+        source: 'generate',
+        audioClipName: clipName,
+        duration,
+        topicPrompt: customPrompt,
+        projectFps,
       });
-      
-      if (!response.ok) {
-        throw new Error("Transcription server returned an error");
-      }
 
       setTranscribeProgress("Aligning word-by-word timestamps...");
-      await new Promise(resolve => setTimeout(resolve, 800));
 
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({}));
-        throw new Error(errorBody.error || `HTTP ${response.status}`);
-      }
-      const data = await response.json();
-      const captions = data.captions;
-      
-      if (!captions || !Array.isArray(captions)) {
-        throw new Error("Invalid captions response format");
+      if (!Array.isArray(captions) || captions.length === 0) {
+        throw new Error("The caption service returned no caption blocks.");
       }
 
       setTranscribeProgress("Applying professional styles and formatting...");
@@ -408,13 +399,16 @@ export const ResourceSidebar: React.FC<ResourceSidebarProps> = ({ onAddClip }) =
       const newCaptionClips = captions.map((block: any, idx: number) => {
         const startAt = block.words && block.words.length > 0 
           ? block.words[0].start 
-          : parseCaptionTimestamp(block.start_time);
+          : parseCaptionTimestamp(block.start_time, projectFps);
         
         const endAt = block.words && block.words.length > 0
           ? block.words[block.words.length - 1].end
-          : parseCaptionTimestamp(block.end_time);
+          : parseCaptionTimestamp(block.end_time, projectFps);
         
-        const timing = normalizeCaptionTiming({ id: `generated_${idx}`, start_time: startAt, end_time: endAt, text: block.text, words: block.words || [] });
+        const timing = normalizeCaptionTiming(
+          { id: `generated_${idx}`, start_time: startAt, end_time: endAt, text: block.text, words: block.words || [] },
+          projectFps,
+        );
 
         return {
           id: `gen_cap_${Date.now()}_${idx}`,
@@ -459,9 +453,7 @@ export const ResourceSidebar: React.FC<ResourceSidebarProps> = ({ onAddClip }) =
 
       project.executeCommand(createTrackSnapshotCommand('Add Generated Subtitles Track', project.tracks, nextTracks));
       useProjectStore.getState().showToast(
-        data.fallback 
-          ? `✨ Generated ${newCaptionClips.length} simulated subtitles (No Gemini Key!)`
-          : `✨ Transcribed and applied ${newCaptionClips.length} AI captions successfully!`
+        `✨ Transcribed and applied ${newCaptionClips.length} AI captions successfully!`
       );
 
     } catch (err: any) {

@@ -1,6 +1,9 @@
 export type CaptionTimestamp = string | number;
 
-export const DEFAULT_CAPTION_FPS = 30;
+/**
+ * There is deliberately **no** default frame rate (D-022 / SHIM-005 removed).
+ * Every `HH:MM:SS:FF` conversion must state the project fps explicitly.
+ */
 
 function finiteOrThrow(value: number, label: string): number {
   if (!Number.isFinite(value) || value < 0) {
@@ -9,7 +12,7 @@ function finiteOrThrow(value: number, label: string): number {
   return value;
 }
 
-export function parseCaptionTimestamp(value: CaptionTimestamp, fps = DEFAULT_CAPTION_FPS): number {
+export function parseCaptionTimestamp(value: CaptionTimestamp, fps: number): number {
   if (typeof value === 'number') return finiteOrThrow(value, 'timestamp');
 
   const raw = String(value).trim();
@@ -46,7 +49,7 @@ export function parseCaptionTimestamp(value: CaptionTimestamp, fps = DEFAULT_CAP
   return finiteOrThrow(h * 3600 + m * 60 + s + (frames / fps), 'timestamp');
 }
 
-export function secondsToFrameTimecode(seconds: number, fps = DEFAULT_CAPTION_FPS): string {
+export function secondsToFrameTimecode(seconds: number, fps: number): string {
   finiteOrThrow(seconds, 'seconds');
   if (!Number.isFinite(fps) || fps <= 0) throw new Error(`Invalid FPS: ${fps}`);
 
@@ -73,11 +76,11 @@ export function secondsToSrtTimestamp(seconds: number): string {
   return `${pad(h)}:${pad(m)}:${pad(s)},${pad(ms, 3)}`;
 }
 
-export function normalizeSrtTimestamp(value: string): string {
+export function normalizeSrtTimestamp(value: string, fps: number): string {
   const raw = value.trim().replace('.', ',');
   const match = raw.match(/^(\d{2}):(\d{2}):(\d{2}),(\d{3})$/);
   if (!match) throw new Error(`Invalid SRT timestamp: ${value}`);
-  const parsed = parseCaptionTimestamp(raw);
+  const parsed = parseCaptionTimestamp(raw, fps);
   const canonical = secondsToSrtTimestamp(parsed);
   return canonical;
 }
