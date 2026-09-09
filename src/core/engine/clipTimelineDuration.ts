@@ -21,6 +21,10 @@ type ClipLike = {
     imageUrl?: unknown;
     videoUrl?: unknown;
     audioUrl?: unknown;
+    /** Durable asset identity (ADR-006). Present even when no object URL is live. */
+    imageAssetId?: unknown;
+    videoAssetId?: unknown;
+    audioAssetId?: unknown;
     textContent?: unknown;
     timelineLaneRole?: unknown;
     sourceMediaDuration?: unknown;
@@ -35,9 +39,14 @@ export function getCanonicalClipPlaybackRate(clip: ClipLike): number {
   return Math.min(MAX_SPEED, Math.max(MIN_SPEED, raw));
 }
 
+function isPresent(value: unknown): boolean {
+  if (typeof value === 'string') return value.trim().length > 0;
+  return value !== undefined && value !== null;
+}
+
 export function getCanonicalClipSourceDuration(clip: ClipLike): number | null {
   // Static visual assets like images, text, stickers, shapes, etc. have no finite source media duration limit.
-  if (clip.properties?.imageUrl) return null;
+  if (isPresent(clip.properties?.imageUrl) || isPresent(clip.properties?.imageAssetId)) return null;
   if (clip.properties?.textContent !== undefined) return null;
 
   // Project persistence can retain the media metadata even when the live media
@@ -56,8 +65,12 @@ export function getCanonicalClipSourceDuration(clip: ClipLike): number | null {
     return persistedSourceDuration > start ? persistedSourceDuration - start : null;
   }
 
-  const hasVideo = typeof clip.properties?.videoUrl === 'string' && clip.properties.videoUrl.trim().length > 0;
-  const hasAudio = typeof clip.properties?.audioUrl === 'string' && clip.properties.audioUrl.trim().length > 0;
+  // Media presence is decided by DURABLE identity first and by the runtime URL
+  // only as a fallback. Object URLs are minted at hydrate time, so a duration
+  // model keyed on them would report a different answer before a save and after
+  // a reload — which would silently resize the timeline.
+  const hasVideo = isPresent(clip.properties?.videoAssetId) || isPresent(clip.properties?.videoUrl);
+  const hasAudio = isPresent(clip.properties?.audioAssetId) || isPresent(clip.properties?.audioUrl);
   if (!hasVideo && !hasAudio) {
     return null;
   }

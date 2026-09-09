@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { useProjectStore } from '../../store/useProjectStore';
 import { createTrackSnapshotCommand } from '../../features/video-studio/project/commands';
 import { createDedicatedTimelineTrack } from '../../features/video-studio/project/services/projectService';
+import { importMediaFile } from '../../features/video-studio/project/services/projectPersistenceService';
 import { normalizeCaptionTheme, resolveCaptionImportTheme, normalizeCaptionTiming } from '../../features/video-studio/captions/services/captionImportService';
 import { parseCaptionTimestamp } from '../../features/video-studio/captions/services/captionTimecodeService';
 import { getProjectFps } from '../../features/video-studio/captions/services/captionProjectFps';
@@ -40,6 +41,10 @@ interface SidebarItem {
   videoUrl?: string;
   audioUrl?: string;
   imageUrl?: string;
+  /** Durable identity in the asset store; the URL fields are runtime handles only. */
+  videoAssetId?: string;
+  audioAssetId?: string;
+  imageAssetId?: string;
 }
 
 // 1. Media Section Assets
@@ -248,32 +253,13 @@ const SUBSCRIBE_TEMPLATES: SidebarItem[] = [
 type MainTab = 'media' | 'audio' | 'text' | 'stickers' | 'effects' | 'transitions' | 'captions' | 'filters' | 'adjustments' | 'subscribe';
 
 export const ResourceSidebar: React.FC<ResourceSidebarProps> = ({ onAddClip }) => {
-  const ownedObjectUrlsRef = useRef<Set<string>>(new Set());
 
-  useEffect(() => {
-    return () => {
-      const referencedUrls = new Set<string>();
-      const activeTracks = useProjectStore.getState().tracks;
-
-      for (const track of activeTracks) {
-        for (const clip of track.clips) {
-          const properties = clip.properties as Record<string, unknown>;
-          for (const value of Object.values(properties)) {
-            if (typeof value === 'string' && value.startsWith('blob:')) {
-              referencedUrls.add(value);
-            }
-          }
-        }
-      }
-
-      for (const url of ownedObjectUrlsRef.current) {
-        if (!referencedUrls.has(url)) {
-          URL.revokeObjectURL(url);
-        }
-      }
-      ownedObjectUrlsRef.current.clear();
-    };
-  }, []);
+  /**
+   * Object-URL ownership moved to the AssetRegistry (INV-008): `resolveUrl` mints,
+   * `releaseUrl` revokes, and the project close path revokes everything that is
+   * still tracked. Revoking here as well would leave the registry tracking a dead
+   * URL, so this component deliberately owns none.
+   */
   const [activeTab, setActiveTab] = useState<MainTab>('media');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [mediaList, setMediaList] = useState<SidebarItem[]>(YOURS_MEDIA);
@@ -493,61 +479,51 @@ export const ResourceSidebar: React.FC<ResourceSidebarProps> = ({ onAddClip }) =
       return;
     }
 
-    const isAudio = file.type.startsWith('audio/');
-    const isImage = file.type.startsWith('image/');
-    const fileUrl = URL.createObjectURL(file);
-    ownedObjectUrlsRef.current.add(fileUrl);
-    
-    if (isImage) {
-      const newAsset: SidebarItem = {
-        id: `u_${Date.now()}`,
-        type: 'video' as const,
-        name: file.name,
-        duration: 5.0,
-        size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-        thumbnail: '🖼️',
-        color: 'from-emerald-600 to-teal-600',
-        imageUrl: fileUrl
-      };
-      setMediaList(prev => [newAsset, ...prev]);
-      useProjectStore.getState().showToast(`📥 Imported image: ${file.name}`);
-      return;
-    }
+    /**
+     * Import path (WP-05): bytes go to the asset store first, then the sidebar
+     * item carries BOTH the measured, authoritative duration and the AssetId.
+     * The object URL is a runtime handle minted by the registry.
+     */
+    void (async () => {
+      try {
+        const { assetId, record, objectUrl } = await importMediaFile({ file });
+        const isAudio = record.kind === 'audio';
+        const isImage = record.kind === 'image';
+        const measured = record.duration !== null && record.duration > 0 ? record.duration : null;
+        const duration = measured ?? (isImage ? 5.0 : 5.0);
 
-    const tempMedia = document.createElement(isAudio ? 'audio' : 'video');
-    tempMedia.src = fileUrl;
-    
-    let resolved = false;
-    const addAssetWithDuration = (duration: number) => {
-      if (resolved) return;
-      resolved = true;
-      const newAsset: SidebarItem = {
-        id: `u_${Date.now()}`,
-        type: isAudio ? 'audio' as const : 'video' as const,
-        name: file.name,
-        duration,
-        size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-        thumbnail: isAudio ? '🔊' : '🎬',
-        color: isAudio ? 'from-fuchsia-600 to-indigo-600' : 'from-cyan-600 to-blue-600',
-        videoUrl: isAudio ? undefined : fileUrl,
-        audioUrl: isAudio ? fileUrl : undefined
-      };
-      setMediaList(prev => [newAsset, ...prev]);
-      useProjectStore.getState().showToast(`📥 Imported asset: ${file.name} (${duration.toFixed(1)}s)`);
-    };
+        const newAsset: SidebarItem = {
+          id: `u_${assetId}`,
+          type: isAudio ? 'audio' as const : 'video' as const,
+          name: file.name,
+          duration,
+          size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+          thumbnail: isImage ? '🖼️' : isAudio ? '🔊' : '🎬',
+          color: isImage
+            ? 'from-emerald-600 to-teal-600'
+            : isAudio
+              ? 'from-fuchsia-600 to-indigo-600'
+              : 'from-cyan-600 to-blue-600',
+          videoUrl: isAudio || isImage ? undefined : objectUrl,
+          audioUrl: isAudio ? objectUrl : undefined,
+          imageUrl: isImage ? objectUrl : undefined,
+          videoAssetId: isAudio || isImage ? undefined : assetId,
+          audioAssetId: isAudio ? assetId : undefined,
+          imageAssetId: isImage ? assetId : undefined,
+        };
 
-    tempMedia.addEventListener('loadedmetadata', () => {
-      addAssetWithDuration(tempMedia.duration || (isAudio ? 30.0 : 10.0));
-    });
-
-    tempMedia.addEventListener('error', () => {
-      addAssetWithDuration(isAudio ? 30.0 : 10.0);
-    });
-
-    // Fallback if events don't fire
-    setTimeout(() => {
-      addAssetWithDuration(isAudio ? 30.0 : 10.0);
-    }, 1000);
+        setMediaList(prev => [newAsset, ...prev]);
+        useProjectStore.getState().showToast(
+          measured === null && !isImage
+            ? `⚠️ Imported ${file.name}, but its duration could not be measured — a 5 s placeholder length was used.`
+            : `📥 Imported asset: ${file.name} (${duration.toFixed(1)}s)`,
+        );
+      } catch (error) {
+        useProjectStore.getState().showToast(
+          `❌ Could not store ${file.name}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    })();
   };
 
   // Mock AI Generator triggering

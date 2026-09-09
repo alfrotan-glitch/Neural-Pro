@@ -1,7 +1,50 @@
 import type { ClipNode, ProjectState, Track } from '../../project/types/project';
 import { detectSceneCuts } from './sceneDetectionService';
 import { getClipPlaybackRate, getClipSourceRange, getEffectiveClipTimelineDuration } from '../../playback/services/mediaTimeMapper';
-import { extractAudioFromClip } from '../../audio/services/audioExtractionService';
+import { extractAudioFromClip, type ExtractedAudioAsset } from '../../audio/services/audioExtractionService';
+import { registerGeneratedMedia } from '../../project/services/projectPersistenceService';
+
+/**
+ * Stores extracted audio as a durable asset before it reaches the timeline.
+ *
+ * Detached/recovered audio is generated media: if it were written into the clip
+ * as a `blob:` URL it would be dead after a reload while the save still reported
+ * success (defect D-006). The bytes go to the asset store, the clip gets an
+ * `audioAssetId`, and the object URL used for this session is the tracked one
+ * minted by the registry — the untracked handle from the extractor is revoked.
+ *
+ * If storage is unavailable the extraction still succeeds for the session and the
+ * clip simply has no `audioAssetId`; that shows up as a missing-media warning on
+ * the next load rather than as a silent placeholder.
+ */
+async function persistExtractedAudio(
+  clip: ClipNode,
+  extracted: ExtractedAudioAsset,
+): Promise<{ url: string; assetId: string | null }> {
+  const name = `${String(clip.properties?.name ?? 'Clip')} — Audio.webm`;
+  try {
+    const registered = await registerGeneratedMedia({
+      blob: extracted.blob,
+      fileName: name,
+      mimeType: extracted.mimeType,
+      producer: 'audio-extraction',
+      role: 'generated',
+      measured: {
+        duration: extracted.waveform.duration ?? null,
+        sampleRate: extracted.waveform.sampleRate ?? null,
+        channels: extracted.waveform.channels ?? null,
+      },
+    });
+    try {
+      URL.revokeObjectURL(extracted.url);
+    } catch {
+      /* already revoked */
+    }
+    return { url: registered.objectUrl, assetId: registered.assetId };
+  } catch {
+    return { url: extracted.url, assetId: null };
+  }
+}
 
 export type TimelineActionResult = {
   tracks: Track[];
@@ -164,13 +207,15 @@ export async function separateAudioFromVideoAsync(
     if (alreadyDetached) continue;
 
     const extracted = await extractAudioFromClip(clip, signal);
+    const stored = await persistExtractedAudio(clip, extracted);
     const audioClip: ClipNode = {
       ...structuredClone(clip),
       id: crypto.randomUUID(),
       properties: {
         ...structuredClone(clip.properties),
         name: `${String(clip.properties.name ?? 'Video')} — Audio`,
-        audioUrl: extracted.url,
+        audioUrl: stored.url,
+        ...(stored.assetId ? { audioAssetId: stored.assetId } : {}),
         audioMimeType: extracted.mimeType,
         audioExtractionMethod: extracted.method,
         waveformData: extracted.waveform.peaks,
@@ -244,13 +289,15 @@ export async function recoverAudioFromVideoAsync(
     }
 
     const extracted = await extractAudioFromClip(clip, signal);
+    const stored = await persistExtractedAudio(clip, extracted);
     const audioClip: ClipNode = {
       ...structuredClone(clip),
       id: crypto.randomUUID(),
       properties: {
         ...structuredClone(clip.properties),
         name: `${String(clip.properties.name ?? 'Video')} — Recovered Audio`,
-        audioUrl: extracted.url,
+        audioUrl: stored.url,
+        ...(stored.assetId ? { audioAssetId: stored.assetId } : {}),
         audioMimeType: extracted.mimeType,
         audioExtractionMethod: extracted.method,
         waveformData: extracted.waveform.peaks,

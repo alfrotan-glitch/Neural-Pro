@@ -29,7 +29,8 @@ import { TimelineToolbar } from '../../features/video-studio/timeline/components
 import { TimelineWorkspace } from '../../features/video-studio/timeline/components/TimelineWorkspace';
 import { TimelineShortcutsModal } from '../../features/video-studio/timeline/components/TimelineShortcutsModal';
 import type { ActiveDrag } from '../../features/video-studio/timeline/components/timelineInteractionTypes';
-import { saveProjectToStorage } from '../../features/video-studio/project/services/projectPersistenceService';
+import { saveCurrentProject } from '../../features/video-studio/project/services/projectSaveController';
+import { relinkClipMedia } from '../../features/video-studio/project/services/projectPersistenceService';
 import { addAssetToTracks } from '../../features/video-studio/project/services/projectService';
 import { normalizeCyberpunkSubscribeProperties } from '../../core/engine/cyberpunkSubscribeModel';
 
@@ -891,6 +892,14 @@ export const VirtualizedTimeline: React.FC<VirtualizedTimelineProps> = ({ projec
     store.showToast('✂️ End trimmed to playhead');
   };
 
+  /**
+   * Link/Replace clip media.
+   *
+   * The bytes go into the asset store and the clip is rewritten to reference an
+   * AssetId; the object URL is minted by the registry (and tracked for
+   * revocation) instead of leaking an untracked `createObjectURL` into the
+   * project document, which is what used to die on reload.
+   */
   const handleLinkOrReplaceMediaFile = (file: File, mode: 'replace' | 'link') => {
     const store = useProjectStore.getState();
     const selectedIds = store.selectedNodeIds;
@@ -899,36 +908,41 @@ export const VirtualizedTimeline: React.FC<VirtualizedTimelineProps> = ({ projec
       return;
     }
 
-    const objectUrl = URL.createObjectURL(file);
-    const initialTracks = structuredClone(store.tracks);
-    const nextTracks = store.tracks.map((track) => ({
-      ...track,
-      clips: track.clips.map((clip) => {
-        if (!selectedIds.includes(clip.id)) return clip;
-        const properties = { ...clip.properties };
-        if (track.type === 'audio') {
-          properties.audioUrl = objectUrl;
-        } else if (track.type === 'video') {
-          properties.videoUrl = objectUrl;
-          properties.imageUrl = objectUrl;
-        }
-        properties.fileUrl = objectUrl;
-        properties.mediaFileName = file.name;
-        properties.mediaMimeType = file.type;
-        properties.mediaLinkedAt = new Date().toISOString();
-        properties.mediaLinkMode = mode;
-        return { ...clip, properties, name: file.name };
-      }),
-    }));
+    void (async () => {
+      try {
+        const initialTracks = structuredClone(store.tracks);
+        const result = await relinkClipMedia({
+          clipIds: selectedIds,
+          file,
+          fileName: file.name,
+          mimeType: file.type,
+          tracks: store.tracks,
+        });
+        const nextTracks = result.tracks.map((track) => ({
+          ...track,
+          clips: track.clips.map((clip) =>
+            selectedIds.includes(clip.id)
+              ? { ...clip, properties: { ...clip.properties, mediaLinkMode: mode } }
+              : clip,
+          ),
+        }));
 
-    store.executeCommand(
-      createTracksSnapshotCommand(
-        mode === 'replace' ? 'Replace Clip Media' : 'Link Clip Media',
-        initialTracks,
-        nextTracks,
-      ),
-    );
-    store.showToast(mode === 'replace' ? `🔄 Replaced media with ${file.name}` : `🔗 Linked ${file.name}`);
+        store.executeCommand(
+          createTracksSnapshotCommand(
+            mode === 'replace' ? 'Replace Clip Media' : 'Link Clip Media',
+            initialTracks,
+            nextTracks,
+          ),
+        );
+        store.showToast(
+          mode === 'replace'
+            ? `🔄 Replaced media with ${file.name}`
+            : `🔗 Linked ${file.name}`,
+        );
+      } catch (error) {
+        store.showToast(`❌ Could not store ${file.name}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    })();
   };
 
   const handleOpenEditEffects = () => {
@@ -1536,16 +1550,12 @@ export const VirtualizedTimeline: React.FC<VirtualizedTimelineProps> = ({ projec
     showToast(`📋 ${materialized.pastedIds.length} کلیپ جایگذاری شد`);
   };
 
-  // Save project JSON to localStorage
+  /**
+   * Durable save (IndexedDB). The controller owns the messaging so this entry
+   * point cannot report a success that the storage layer did not deliver.
+   */
   const handleSaveProject = () => {
-    const store = useProjectStore.getState();
-    try {
-      saveProjectToStorage(localStorage, projectName, store);
-      store.showToast('💾 پروژه با موفقیت در مرورگر شما ذخیره شد!');
-    } catch (error) {
-      console.error('Failed to save Video Studio project:', error);
-      store.showToast('❌ ذخیره‌سازی پروژه ناموفق بود!');
-    }
+    void saveCurrentProject(projectName);
   };
 
   // Delete active node - immune to stale closures by querying the latest store state
